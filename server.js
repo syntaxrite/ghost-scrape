@@ -4,15 +4,9 @@ const { createClient } = require('@supabase/supabase-js');
 const { scrapeToMarkdown } = require('./scraper');
 
 const app = express();
-
-// Use Render's dynamic port or default to 10000
 const PORT = process.env.PORT || 10000;
 
-// Initialize Supabase
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 app.use(express.json());
 
@@ -20,47 +14,54 @@ app.get('/scrape', async (req, res) => {
     const targetUrl = req.query.url;
     const apiKey = req.headers['x-api-key'];
 
-    // Security Check
-    if (apiKey !== 'test-key-123') {
-        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
-    }
-
-    if (!targetUrl) {
-        return res.status(400).json({ error: 'Please provide a URL parameter' });
+    if (!targetUrl || !apiKey) {
+        return res.status(400).json({ error: 'Missing URL or API Key' });
     }
 
     try {
-        console.log(`✅ Verified user: starting scrape for: ${targetUrl}`);
+        // 1. AUTHENTICATE: Check the database for this specific key
+        const { data: user, error: authError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('key', apiKey)
+            .single();
 
-        // Run the scraper logic
-        const markdown = await scrapeToMarkdown(targetUrl);
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Invalid API Key' });
+        }
 
-        // Save to Supabase
-        const { data, error } = await supabase
+        console.log(`🚀 Request from: ${user.email} | Current Usage: ${user.usage}`);
+
+        // 2. SCRAPE: Run the Playwright logic
+        const markdownData = await scrapeToMarkdown(targetUrl);
+
+        // 3. SAVE DATA: Store the result in scraped_data
+        const { error: saveError } = await supabase
             .from('scraped_data')
             .insert([{ 
                 url: targetUrl, 
-                content: markdown,
-                created_at: new Date() 
+                content: markdownData.content,
+                user_id: user.id // Linking the scrape to the user
             }]);
 
-        if (error) throw error;
+        if (saveError) throw saveError;
+
+        // 4. METERING: Increment the user's usage count
+        await supabase.rpc('increment_usage', { user_key: apiKey });
 
         res.json({
             success: true,
-            message: "Data scraped and saved to Supabase",
-            url: targetUrl,
-            markdown: markdown
+            user_email: user.email,
+            new_usage_total: user.usage + 1,
+            data: markdownData
         });
 
     } catch (err) {
-        console.error('❌ Scrape Error:', err.message);
-        res.status(500).json({ error: 'Failed to scrape or save data', details: err.message });
+        console.error('❌ Error:', err.message);
+        res.status(500).json({ error: 'Internal Server Error', details: err.message });
     }
 });
 
-// Start Server on 0.0.0.0 for cloud access
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
-    console.log(`🔌 Connected to Supabase`);
+    console.log(`🚀 SaaS API Live on port ${PORT}`);
 });
