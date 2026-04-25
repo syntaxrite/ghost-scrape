@@ -12,10 +12,12 @@
   "type": "commonjs",
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "@supabase/supabase-js": "^2.104.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsdom": "^29.0.2",
     "mongodb": "^7.2.0",
+    "node-fetch": "^3.3.2",
     "playwright": "^1.59.1",
     "turndown": "^7.2.4"
   }
