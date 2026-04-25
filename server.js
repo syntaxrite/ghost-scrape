@@ -5,11 +5,10 @@ const { scrapeToMarkdown } = require('./scraper');
 
 const app = express();
 
-// 1. Dynamic Port for Cloud Deployment
-// Render will inject its own port into process.env.PORT
+// Use Render's dynamic port or default to 10000
 const PORT = process.env.PORT || 10000;
 
-// 2. Initialize Supabase
+// Initialize Supabase
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY
@@ -17,7 +16,6 @@ const supabase = createClient(
 
 app.use(express.json());
 
-// 3. The Main Scrape Route
 app.get('/scrape', async (req, res) => {
     const targetUrl = req.query.url;
     const apiKey = req.headers['x-api-key'];
@@ -48,7 +46,6 @@ app.get('/scrape', async (req, res) => {
 
         if (error) throw error;
 
-        // Return the markdown to the user
         res.json({
             success: true,
             message: "Data scraped and saved to Supabase",
@@ -62,8 +59,7 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
-// 4. Start Server
-// Using '0.0.0.0' allows Render's network to find your app container
+// Start Server on 0.0.0.0 for cloud access
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
     console.log(`🔌 Connected to Supabase`);
