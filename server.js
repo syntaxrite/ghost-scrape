@@ -47,12 +47,12 @@ app.get('/scrape', checkApiKey, async (req, res) => {
 
     try {
         // This is where we will add Playwright + Turndown next!
-        res.json({ 
-            status: "Authenticated",
-            message: "Your API key is working!",
-            target: targetUrl,
-            user_email: req.user.email
-        });
+        // res.json({ 
+        //     status: "Authenticated",
+        //     message: "Your API key is working!",
+        //     target: targetUrl,
+        //     user_email: req.user.email
+        // });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
