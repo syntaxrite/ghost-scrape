@@ -12,17 +12,17 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 
-// 🚧 RATE LIMIT (protect free tier abuse)
+// 🚧 RATE LIMIT
 app.use(rateLimit({
     windowMs: 60 * 1000,
-    max: 30 // 30 requests per minute
+    max: 30
 }));
 
-// 🧠 SIMPLE MEMORY CACHE (FREE + FAST)
+// 🧠 CACHE
 const cache = new Map();
-const CACHE_TTL = 1000 * 60 * 30; // 30 mins
+const CACHE_TTL = 1000 * 60 * 30;
 
-// 🔄 REUSE BROWSER (HUGE SPEED BOOST)
+// 🔄 BROWSER REUSE
 let browser;
 async function getBrowser() {
     if (!browser) {
@@ -34,7 +34,7 @@ async function getBrowser() {
     return browser;
 }
 
-// 📄 MARKDOWN ENGINE
+// 📄 MARKDOWN
 const turndown = new TurndownService();
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img']);
 
@@ -55,7 +55,7 @@ function distill(html, url) {
     };
 }
 
-// ⚡ FAST FETCH (PRIMARY PATH)
+// ⚡ FAST FETCH
 async function fastFetch(url) {
     const { data } = await axios.get(url, {
         timeout: 8000,
@@ -67,7 +67,7 @@ async function fastFetch(url) {
     return distill(data, url);
 }
 
-// 🐢 BROWSER FALLBACK (ONLY IF NEEDED)
+// 🐢 BROWSER FALLBACK
 async function browserFetch(url) {
     const browser = await getBrowser();
     const page = await browser.newPage();
@@ -95,10 +95,20 @@ async function browserFetch(url) {
     }
 }
 
-// 🎯 SMART SCRAPER
+// 🔍 VALIDATION
+function isValidUrl(url) {
+    try {
+        new URL(url);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// 🎯 SCRAPER
 async function scrape(url) {
 
-    // ✅ CACHE FIRST
+    // CACHE
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.time < CACHE_TTL)) {
         return { ...cached.data, cached: true };
@@ -106,29 +116,28 @@ async function scrape(url) {
 
     let result;
 
-    // ⚡ Wikipedia special fast path
+    // Wikipedia fast path
     if (url.includes('wikipedia.org')) {
-        const title = url.split('/wiki/').pop();
+        const title = url.split('/wiki/').pop().split('#')[0];
         const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/html/${title}`;
         const { data } = await axios.get(apiUrl);
         result = distill(data, url);
     } else {
-        // 🚀 TRY FAST FETCH FIRST
         try {
             result = await fastFetch(url);
 
-            // If extraction fails or too small → fallback
             if (!result || result.markdown.length < 200) {
                 throw new Error("Weak content");
             }
 
         } catch {
-            // 🐢 FALLBACK TO BROWSER
             result = await browserFetch(url);
         }
     }
 
-    // 💾 SAVE TO CACHE
+    // LIMIT CACHE SIZE
+    if (cache.size > 1000) cache.clear();
+
     cache.set(url, {
         data: result,
         time: Date.now()
@@ -141,13 +150,12 @@ async function scrape(url) {
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
 
-    if (!url) {
-        return res.status(400).json({ error: "Missing URL" });
+    if (!url || !isValidUrl(url)) {
+        return res.status(400).json({ error: "Invalid URL" });
     }
 
     try {
         const start = Date.now();
-
         const data = await scrape(url);
 
         res.json({
@@ -164,6 +172,8 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
-app.listen(5000, () => {
-    console.log("🚀 GhostScrape Optimized Server Running");
+// 🚀 START SERVER
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`🚀 GhostScrape running on ${PORT}`);
 });

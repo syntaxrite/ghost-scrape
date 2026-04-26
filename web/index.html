@@ -84,80 +84,71 @@
     </div>
 
     <script>
-        // Initialize Icons
-        lucide.createIcons();
+    lucide.createIcons();
 
-        let totalDollarSavings = 0;
+    const API = "https://ghost-scrape.up.railway.app"; // your backend
 
-        async function runScrape() {
-            const url = document.getElementById('targetUrl').value.trim();
-            if (!url) return;
+    let totalDollarSavings = 0;
 
-            const loader = document.getElementById('loader');
-            const results = document.getElementById('results');
-            const progress = document.getElementById('progressBar');
-            const status = document.getElementById('loadingStatus');
+    async function runScrape() {
+        const url = document.getElementById('targetUrl').value.trim();
+        if (!url) return;
 
-            // Reset UI
-            loader.classList.remove('hidden');
-            results.classList.add('hidden');
-            progress.style.width = '20%';
-            status.innerText = "Analyzing Target URL...";
+        const loader = document.getElementById('loader');
+        const results = document.getElementById('results');
+        const progress = document.getElementById('progressBar');
+        const status = document.getElementById('loadingStatus');
 
-            const startTime = performance.now();
+        loader.classList.remove('hidden');
+        results.classList.add('hidden');
+        progress.style.width = '20%';
+        status.innerText = "Analyzing Target URL...";
 
-            try {
-                // Update progress based on site type
-                if (url.includes('wikipedia')) {
-                    status.innerText = "Fast Path: Bypassing Browser...";
-                    progress.style.width = '60%';
-                } else {
-                    status.innerText = "Stealth Path: Launching Chromium...";
-                    progress.style.width = '40%';
-                }
+        const startTime = performance.now();
 
-                const apiEndpoint = `https://markitdown-api-v07v.onrender.com/scrape?url=${encodeURIComponent(url)}`;
-                const response = await fetch(apiEndpoint);
-                
-                if (!response.ok) throw new Error("Cloud Engine Timeout");
+        try {
+            const apiEndpoint = `${API}/scrape?url=${encodeURIComponent(url)}`;
+            const response = await fetch(apiEndpoint);
 
-                const data = await response.json();
-                const endTime = performance.now();
+            if (!response.ok) throw new Error("Request failed");
 
-                // Populate Stats
-                document.getElementById('pageTitle').innerText = data.title;
-                document.getElementById('output').innerText = data.markdown;
-                document.getElementById('statSavings').innerText = data.stats.savings;
-                document.getElementById('statTime').innerText = ((endTime - startTime) / 1000).toFixed(2) + 's';
-                
-                // Smart Mode Badge
-                document.getElementById('modeBadge').innerText = url.includes('wikipedia') ? 'FAST_FETCH' : 'BROWSER_STEALTH';
+            const data = await response.json();
+            const endTime = performance.now();
 
-                // Calculate Financial Value ($0.03 per 1k tokens saved approx)
-                const tokensSaved = (data.stats.raw_chars - data.stats.distilled_chars) / 4;
-                const moneySaved = (tokensSaved / 1000) * 0.03;
-                totalDollarSavings += moneySaved;
-                document.getElementById('totalSavings').innerText = `$${totalDollarSavings.toFixed(4)} saved`;
+            // Populate
+            document.getElementById('pageTitle').innerText = data.title;
+            document.getElementById('output').innerText = data.markdown;
 
-                progress.style.width = '100%';
-                setTimeout(() => {
-                    loader.classList.add('hidden');
-                    results.classList.remove('hidden');
-                }, 500);
+            const reduction = ((1 - data.stats.distilled_chars / data.stats.raw_chars) * 100).toFixed(1);
+            document.getElementById('statSavings').innerText = reduction + "%";
+            document.getElementById('statTime').innerText = ((endTime - startTime) / 1000).toFixed(2) + 's';
 
-            } catch (error) {
-                alert("Smart Distillation failed: Check your Render logs!");
+            document.getElementById('modeBadge').innerText =
+                url.includes('wikipedia') ? 'FAST_FETCH' : 'HYBRID_MODE';
+
+            const tokensSaved = (data.stats.raw_chars - data.stats.distilled_chars) / 4;
+            const moneySaved = (tokensSaved / 1000) * 0.03;
+            totalDollarSavings += moneySaved;
+            document.getElementById('totalSavings').innerText = `$${totalDollarSavings.toFixed(4)} saved`;
+
+            progress.style.width = '100%';
+
+            setTimeout(() => {
                 loader.classList.add('hidden');
-            }
-        }
+                results.classList.remove('hidden');
+            }, 400);
 
-        function copyToClipboard() {
-            const text = document.getElementById('output').innerText;
-            navigator.clipboard.writeText(text);
-            const btn = event.currentTarget;
-            btn.innerText = "Copied!";
-            setTimeout(() => { btn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> Copy Markdown'; lucide.createIcons(); }, 2000);
+        } catch (error) {
+            alert("Distillation failed. Check backend.");
+            loader.classList.add('hidden');
         }
-    </script>
+    }
+
+    function copyToClipboard() {
+        const text = document.getElementById('output').innerText;
+        navigator.clipboard.writeText(text);
+    }
+</script>
+
 </body>
 </html>
