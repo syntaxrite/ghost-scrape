@@ -108,6 +108,8 @@ function isValidUrl(url) {
 // 🎯 SCRAPER
 async function scrape(url) {
 
+    console.log("👉 Scraping:", url);
+
     // CACHE
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.time < CACHE_TTL)) {
@@ -118,7 +120,13 @@ async function scrape(url) {
 
     // Wikipedia fast path
     if (url.includes('wikipedia.org')) {
-        const title = url.split('/wiki/').pop().split('#')[0];
+        const parsedUrl = new URL(url);
+        const wikiPath = parsedUrl.pathname.split('/wiki/')[1];
+        if (!wikiPath) {
+            throw new Error('Invalid Wikipedia article URL');
+        }
+
+        const title = encodeURIComponent(decodeURIComponent(wikiPath));
         const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/html/${title}`;
         const { data } = await axios.get(apiUrl);
         result = distill(data, url);
@@ -133,6 +141,10 @@ async function scrape(url) {
         } catch {
             result = await browserFetch(url);
         }
+    }
+
+    if (!result || !result.markdown) {
+        throw new Error('No readable content found');
     }
 
     // LIMIT CACHE SIZE
@@ -163,11 +175,13 @@ app.get('/scrape', async (req, res) => {
             time_ms: Date.now() - start,
             ...data
         });
-
     } catch (e) {
+        console.error("❌ SCRAPE ERROR:");
+        console.error(e); // full error dump
+
         res.status(500).json({
             error: "Failed to scrape",
-            details: e.message
+            details: e.message || "Unknown error"
         });
     }
 });
