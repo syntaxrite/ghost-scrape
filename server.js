@@ -49,31 +49,85 @@ async function fetchFast(url) {
 
 /* --- STEALTH FETCH (RAILWAY OPTIMIZED) --- */
 async function fetchStealth(url) {
-    console.log("🕵️ Switching to Stealth Mode...");
+    console.log("🕵️ Entering Ultra-Stealth Mode...");
     const browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-blink-features=AutomationControlled', // Hides "automated" flag
+        ]
     });
+
     try {
-        const page = await browser.newPage();
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        await page.waitForTimeout(2000); 
+        const context = await browser.newContext({
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport: { width: 1920, height: 1080 },
+            deviceScaleFactor: 1,
+        });
+
+        const page = await context.newPage();
+        
+        // Stack Overflow/Medium check for "webdriver" property. This deletes it.
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        });
+
+        // Use 'networkidle' for Medium/StackOverflow to ensure comments/math/code load
+        await page.goto(url, { 
+            waitUntil: "networkidle", 
+            timeout: 45000 
+        });
+
+        // Human-like scroll to trigger lazy-loaded content
+        await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+        await page.waitForTimeout(2500); 
+
         const content = await page.content();
         await browser.close();
         return content;
     } catch (err) {
         if (browser) await browser.close();
-        throw err;
+        throw new Error("Stealth failed: " + err.message);
     }
 }
 
 /* --- DISTILL --- */
 function distill(html, url) {
     const dom = new JSDOM(html, { url });
-    const article = new Readability(dom.window.document).parse();
-    if (!article) return null;
-    const md = turndown.turndown(article.content);
-    return { title: article.title, markdown: md, stats: { raw_chars: html.length, distilled_chars: md.length } };
+    const doc = dom.window.document;
+
+    // 1. Let Readability find the "Heart" of the page first
+    const reader = new Readability(doc, {
+        charThreshold: 500, // Helps with shorter Stack Overflow answers
+        nbTopCandidates: 3
+    });
+    
+    const article = reader.parse();
+
+    if (!article || !article.content) {
+        // Fallback: If Readability fails, grab the <body> but strip scripts
+        const body = doc.body;
+        body.querySelectorAll("script, style, nav, footer, header").forEach(el => el.remove());
+        return {
+            title: doc.title || "No Title",
+            markdown: turndown.turndown(body.innerHTML),
+            stats: { raw_chars: html.length, distilled_chars: body.textContent.length }
+        };
+    }
+
+    // 2. Convert the found article content to Markdown
+    const markdown = turndown.turndown(article.content);
+
+    return {
+        title: article.title,
+        markdown: markdown,
+        stats: {
+            raw_chars: html.length,
+            distilled_chars: markdown.length
+        }
+    };
 }
 
 /* --- ROUTE --- */
