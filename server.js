@@ -126,18 +126,19 @@ turndown.remove(['script','style','iframe','svg']);
 function distill(html, url) {
 
     const dom = new JSDOM(html, { url });
-    let document = dom.window.document;
+    const doc = dom.window.document;
 
-    document = cleanDom(document);
-    document = simplifyMedia(document);
+    // 🧹 CLEAN (but DO NOT replace doc)
+    cleanDom(doc);
+    simplifyMedia(doc);
 
-    // 🔥 GFG SPECIAL FIX
+    // 🔥 GFG SPECIAL CASE
     if (url.includes('geeksforgeeks.org')) {
-        const main = document.querySelector('.text');
+        const main = doc.querySelector('.text');
         if (main && main.textContent.length > 200) {
             const md = turndown.turndown(main.innerHTML);
             return {
-                title: document.title,
+                title: doc.title,
                 markdown: formatMarkdown(md),
                 mode: "gfg",
                 stats: {
@@ -147,6 +148,39 @@ function distill(html, url) {
             };
         }
     }
+
+    // 🧠 Readability (USE ORIGINAL DOC)
+    const article = new Readability(doc).parse();
+
+    if (article && article.textContent.length > 300) {
+        const md = turndown.turndown(article.content);
+
+        return {
+            title: article.title,
+            markdown: formatMarkdown(md),
+            mode: "readability",
+            stats: {
+                raw_chars: html.length,
+                distilled_chars: md.length
+            }
+        };
+    }
+
+    // 💀 fallback
+    let text = doc.body.textContent
+        .replace(/\.\s+/g, '.\n\n')
+        .slice(0, 20000);
+
+    return {
+        title: doc.title || "Untitled",
+        markdown: formatMarkdown(text),
+        mode: "fallback",
+        stats: {
+            raw_chars: html.length,
+            distilled_chars: text.length
+        }
+    };
+
 
     // 🧠 Readability
     const article = new Readability(document).parse();
