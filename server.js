@@ -1,15 +1,14 @@
 const express = require('express');
 const cors = require('cors');
-// Changed to firefox
-const { firefox } = require('playwright-extra'); 
+const { chromium } = require('playwright-extra');
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const { Readability } = require('@mozilla/readability');
 const { JSDOM } = require('jsdom');
 const TurndownService = require('turndown');
-const axios = require('axios'); 
+const axios = require('axios');
 require('dotenv').config();
 
-firefox.use(stealth);
+chromium.use(stealth);
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -17,54 +16,58 @@ app.use(express.json());
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside']);
 
+// Clean HTML to Markdown
 function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
     if (!article) return null;
-    const md = turndown.turndown(article.content);
+
+    const markdown = turndown.turndown(article.content);
     return {
         title: article.title,
-        markdown: md,
+        markdown: markdown,
         stats: {
             raw_chars: html.length,
-            distilled_chars: md.length,
-            savings: Math.round((1 - (md.length / html.length)) * 100) + "%"
+            distilled_chars: markdown.length,
+            savings: Math.round((1 - (markdown.length / html.length)) * 100) + "%"
         }
     };
 }
 
 async function scrapeSmart(url) {
-    // 1. FAST PATH: Wikipedia (Solves the 20-second delay)
-    if (url.includes('wikipedia.org')) {
-        console.log("⚡ Fast Path: Axios with Browser Identity");
-        const { data: html } = await axios.get(url, { 
+    // 1. TURBO PATH: Wikipedia & GitHub (Sub-second with proper identity)
+    if (url.includes('wikipedia.org') || url.includes('github.com')) {
+        console.log("⚡ Turbo Path Active");
+        const response = await axios.get(url, { 
             timeout: 10000,
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0' 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' 
             }
         });
-        return distill(html, url);
+        return distill(response.data, url);
     }
 
-    // 2. FIREFOX STEALTH PATH
-    const browser = await firefox.launch({ 
+    // 2. STEALTH PATH: For heavy sites (TechCrunch, ZDNet)
+    const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox'] 
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
     });
     const page = await browser.newPage();
 
     try {
+        // Block all non-text assets immediately to save RAM
         await page.route('**/*', (route) => {
-            if (['image', 'media', 'font', 'stylesheet'].includes(route.request().resourceType())) {
+            const type = route.request().resourceType();
+            if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
                 return route.abort();
             }
             route.continue();
         });
 
-        // Use 'domcontentloaded' to avoid the 45s timeout seen in your logs
+        // Single Navigation (Fixes the 45s timeout)
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
         
-        // Wait for content or max 5 seconds
+        // Extract content as soon as common text tags appear
         await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
 
         const html = await page.content();
@@ -86,4 +89,4 @@ app.get('/scrape', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log("🚀 Firefox Engine Live"));
+app.listen(PORT, () => console.log(`🚀 Ghost-Scrape Engine v3 Live on ${PORT}`));
