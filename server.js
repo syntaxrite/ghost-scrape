@@ -8,14 +8,21 @@ const TurndownService = require('turndown');
 
 chromium.use(stealth);
 const app = express();
-app.use(cors());
+
+// FIXED CORS: This allows your Vercel app to talk to Render
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'x-api-key']
+}));
+
 app.use(express.json());
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav']);
 
 async function scrapeSmart(url) {
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     try {
         await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
@@ -37,9 +44,10 @@ async function scrapeSmart(url) {
     }
 }
 
-// Routes
-app.get('/', (req, res) => res.send("Ghost-Scrape Server is Live"));
+// HEALTH CHECK (Visit your-app.onrender.com to see this)
+app.get('/', (req, res) => res.send("✅ Ghost-Scrape Engine is LIVE"));
 
+// THE MAIN ROUTE (Used by your frontend)
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL is required" });
@@ -51,4 +59,4 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 5000, () => console.log("Server running"));
+app.listen(process.env.PORT || 5000);

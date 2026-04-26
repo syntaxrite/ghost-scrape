@@ -32,7 +32,7 @@
             document.getElementById('loader').classList.remove('hidden');
             try {
                 // Change this URL to your actual Render URL
-                const res = await fetch(`https://ghost-scrape.onrender.com/scrape?url=${encodeURIComponent(url)}`);
+                const res = await fetch(`https://markitdown-api-v07v.onrender.com/scrape?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
                 document.getElementById('output').innerText = data.markdown;
                 document.getElementById('savingsTag').innerText = data.stats.savings + " Tokens Saved";
