@@ -21,7 +21,7 @@ app.use(rateLimit({
 const cache = new Map();
 const CACHE_TTL = 1000 * 60 * 30;
 
-// 🎭 ROTATING USER AGENTS (basic anti-bot)
+// 🎭 USER AGENTS
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17 Safari/605.1.15',
@@ -29,25 +29,64 @@ const USER_AGENTS = [
 ];
 
 function getHeaders() {
-    const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
     return {
-        'User-Agent': ua,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+        'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'en-US,en;q=0.9',
         'Connection': 'keep-alive'
     };
 }
 
+// 🧹 REMOVE ADS / JUNK
+function cleanDom(document) {
+    const selectors = [
+        'script', 'style', 'noscript', 'iframe',
+        'header', 'footer', 'nav', 'aside',
+        '.ads', '.advertisement', '.promo',
+        '[class*="ad"]', '[id*="ad"]',
+        '.sidebar', '.popup', '.banner'
+    ];
+
+    selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+    });
+
+    return document;
+}
+
+// 🖼️ SIMPLIFY MEDIA
+function simplifyMedia(document) {
+    document.querySelectorAll('img').forEach(img => {
+        const src = img.src || '';
+        img.replaceWith(`[Image: ${src.split('/').pop() || 'image'}.jpg]`);
+    });
+
+    document.querySelectorAll('video').forEach(video => {
+        video.replaceWith(`[Video content removed]`);
+    });
+
+    return document;
+}
+
 // 📄 MARKDOWN ENGINE
 const turndown = new TurndownService();
-turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img']);
+turndown.remove(['script', 'style', 'iframe', 'svg']);
 
+// 🧠 DISTILL FUNCTION (SMART)
 function distill(html, url) {
-    const doc = new JSDOM(html, { url });
-    const article = new Readability(doc.window.document).parse();
+    const dom = new JSDOM(html, { url });
+    let document = dom.window.document;
 
-    // 🧠 If Readability works
-    if (article && article.textContent.length > 200) {
+    // 🧹 Clean junk first
+    document = cleanDom(document);
+
+    // 🖼️ simplify media
+    document = simplifyMedia(document);
+
+    // 🧠 Try Readability
+    const article = new Readability(document).parse();
+
+    if (article && article.textContent.length > 300) {
         const md = turndown.turndown(article.content);
 
         return {
@@ -61,37 +100,36 @@ function distill(html, url) {
         };
     }
 
-    // 💀 Fallback: extract body text manually
-    console.log("⚠️ Falling back to raw extraction");
+    // 💀 Fallback: grab main content manually
+    console.log("⚠️ Readability failed → fallback mode");
 
-    const bodyText = doc.window.document.body.textContent
+    let text = document.body.textContent
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 15000); // limit
+        .slice(0, 20000);
 
     return {
-        title: doc.window.document.title || "Untitled",
-        markdown: bodyText,
-        mode: "raw",
+        title: document.title || "Untitled",
+        markdown: text,
+        mode: "fallback",
         stats: {
             raw_chars: html.length,
-            distilled_chars: bodyText.length
+            distilled_chars: text.length
         }
     };
 }
 
-// ⚡ SMART FETCH (retry + anti-bot)
+// ⚡ FETCH
 async function fetchPage(url) {
     try {
         const { data } = await axios.get(url, {
             timeout: 15000,
             headers: getHeaders(),
-            maxRedirects: 5
+            decompress: true
         });
         return data;
     } catch (err) {
-        // retry once with new headers
-        console.log("🔁 Retry with new headers...");
+        console.log("🔁 Retry...");
         const { data } = await axios.get(url, {
             timeout: 15000,
             headers: getHeaders()
@@ -100,24 +138,12 @@ async function fetchPage(url) {
     }
 }
 
-// 🔍 VALIDATION
-function isValidUrl(url) {
-    try {
-        new URL(url);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 // 🎯 SCRAPER
 async function scrape(url) {
-
     console.log("👉 Scraping:", url);
 
-    // ⚡ CACHE
     const cached = cache.get(url);
-    if (cached && (Date.now() - cached.time < CACHE_TTL)) {
+    if (cached && Date.now() - cached.time < CACHE_TTL) {
         console.log("⚡ Cache hit");
         return { ...cached.data, cached: true };
     }
@@ -127,18 +153,10 @@ async function scrape(url) {
     try {
         html = await fetchPage(url);
     } catch (err) {
-        console.error("❌ Fetch failed:", err.message);
-        throw new Error("Failed to fetch page (blocked or timeout)");
+        throw new Error("Fetch failed (blocked or timeout)");
     }
 
     const result = distill(html, url);
-
-    if (!result || !result.markdown) {
-        throw new Error("No readable content found");
-    }
-
-    // 🧹 CACHE LIMIT
-    if (cache.size > 1000) cache.clear();
 
     cache.set(url, {
         data: result,
@@ -157,10 +175,6 @@ app.get('/', (req, res) => {
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
 
-    if (!url || !isValidUrl(url)) {
-        return res.status(400).json({ success: false, error: "Invalid URL" });
-    }
-
     try {
         const start = Date.now();
         const data = await scrape(url);
@@ -172,7 +186,7 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (e) {
-        console.error("❌ SCRAPE ERROR:", e.message);
+        console.error("❌ ERROR:", e.message);
 
         res.status(500).json({
             success: false,
@@ -181,7 +195,8 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
+// 🚀 START
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`🚀 GhostScrape running on ${PORT}`);
+    console.log(`🚀 Running on ${PORT}`);
 });
