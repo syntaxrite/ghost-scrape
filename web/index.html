@@ -1,44 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost-Scrape | Distill HTML to Markdown</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="description" content="Ghost-Scrape: The fastest way to distill clumsy HTML into clean Markdown for AI Agents and LLMs.">
+    <meta name="keywords" content="web scraper, html to markdown, AI agent tools, token saver">
 </head>
-<meta name="description" content="Ghost-Scrape: The fastest way to distill clumsy HTML into clean Markdown for AI Agents and LLMs.">
-<meta name="keywords" content="web scraper, html to markdown, AI agent tools, token saver">
-<body class="bg-black text-gray-200">
+<body class="bg-black text-gray-200 font-sans">
     <div class="max-w-4xl mx-auto py-20 px-6">
-        <h1 class="text-4xl font-bold text-blue-500 mb-2">Ghost-Scrape</h1>
-        <p class="mb-8 text-gray-500">The distillation layer for AI Agents. Save 90% on tokens.</p>
+        <h1 class="text-5xl font-extrabold text-blue-500 mb-2">Ghost-Scrape</h1>
+        <p class="text-xl mb-10 text-gray-400">The distillation layer for AI Agents. Save up to 90% on LLM tokens.</p>
         
-        <div class="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-800">
-            <input id="targetUrl" type="text" placeholder="Paste URL..." class="flex-1 bg-transparent p-3 outline-none">
-            <button onclick="runScrape()" class="bg-blue-600 px-6 py-3 rounded-md font-bold">Distill</button>
+        <div class="flex flex-col md:flex-row gap-2 bg-gray-900 p-3 rounded-xl border border-gray-800 shadow-2xl">
+            <input id="targetUrl" type="text" placeholder="Paste a messy URL (Reddit, News, etc.)..." 
+                class="flex-1 bg-transparent p-4 outline-none text-lg text-white">
+            <button onclick="runScrape()" 
+                class="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-lg font-bold text-white transition-all transform active:scale-95">
+                Distill Now
+            </button>
         </div>
 
-        <div id="loader" class="hidden mt-10 text-center animate-pulse text-blue-400">Engine is Distilling...</div>
+        <div id="loader" class="hidden mt-12 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p class="animate-pulse text-blue-400 font-medium">Ghost Engine is Distilling Content...</p>
+        </div>
 
-        <div id="results" class="hidden mt-10 grid grid-cols-2 gap-4">
-            <div class="p-4 bg-gray-900 rounded border border-gray-800">
-                <span id="savingsTag" class="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">0% Saved</span>
-                <pre id="output" class="mt-4 text-xs h-64 overflow-auto whitespace-pre-wrap"></pre>
+        <div id="results" class="hidden mt-12 space-y-6">
+            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-t-lg border-x border-t border-gray-800">
+                <h3 id="pageTitle" class="text-lg font-semibold text-blue-300 truncate max-w-md">Distilled Content</h3>
+                <span id="savingsTag" class="bg-green-900/50 text-green-400 text-xs font-bold px-3 py-1 rounded-full border border-green-700">
+                    0% Tokens Saved
+                </span>
+            </div>
+            <div class="bg-gray-950 p-6 rounded-b-lg border border-gray-800 relative">
+                <pre id="output" class="text-sm font-mono h-96 overflow-auto whitespace-pre-wrap leading-relaxed text-gray-300 custom-scrollbar"></pre>
+                <button onclick="copyToClipboard()" class="absolute top-4 right-4 bg-gray-800 hover:bg-gray-700 text-xs px-3 py-1 rounded border border-gray-600">
+                    Copy
+                </button>
             </div>
         </div>
     </div>
 
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+
     <script>
         async function runScrape() {
-            const url = document.getElementById('targetUrl').value;
+            const urlInput = document.getElementById('targetUrl');
+            const url = urlInput.value.trim();
+            if (!url) return alert("Please paste a valid URL first!");
+
+            // UI Reset
             document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+
             try {
-                // Change this URL to your actual Render URL
-                const res = await fetch(`https://markitdown-api-v07v.onrender.com?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
+                // IMPORTANT: This URL matches your LIVE Render backend
+                const apiEndpoint = `https://markitdown-api-v07v.onrender.com/scrape?url=${encodeURIComponent(url)}`;
+                
+                const response = await fetch(apiEndpoint);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Server Error");
+                }
+
+                const data = await response.json();
+                
+                // Populate the UI with distilled data
+                document.getElementById('pageTitle').innerText = data.title || "Distilled Content";
                 document.getElementById('output').innerText = data.markdown;
-                document.getElementById('savingsTag').innerText = data.stats.savings + " Tokens Saved";
+                
+                // Show the "Value" (Savings)
+                if (data.stats && data.stats.savings) {
+                    document.getElementById('savingsTag').innerText = `${data.stats.savings} Tokens Saved`;
+                }
+
                 document.getElementById('results').classList.remove('hidden');
-            } catch (e) { alert("Error: " + e.message); }
-            document.getElementById('loader').classList.add('hidden');
+            } catch (error) {
+                console.error("Scrape Error:", error);
+                alert("Distillation failed: " + error.message);
+            } finally {
+                document.getElementById('loader').classList.add('hidden');
+            }
+        }
+
+        function copyToClipboard() {
+            const text = document.getElementById('output').innerText;
+            navigator.clipboard.writeText(text);
+            alert("Markdown copied to clipboard!");
         }
     </script>
 </body>
