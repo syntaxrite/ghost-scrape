@@ -12,7 +12,9 @@ chromium.use(stealth);
 const app = express();
 app.use(cors());
 
-// Shared distillation logic
+const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside', 'header']);
+
 function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
@@ -30,40 +32,42 @@ function distill(html, url) {
 }
 
 async function scrapeSmart(url) {
-    // 1. TURBO PATH: Wikipedia & GitHub (Identity spoofed for instant speed)
+    // 1. TURBO PATH: Wikipedia & GitHub (Sub-second speed via Identity Spoofing)
     if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        console.log("⚡ Turbo Path Active");
+        console.log("⚡ Turbo Path: Bypassing Tarpit");
         const response = await axios.get(url, { 
             timeout: 10000,
             headers: { 
+                // This specific header is the "Magic Key" to avoid Wikipedia's 20s delay
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
             }
         });
         return distill(response.data, url);
     }
 
-    // 2. STEALTH ENGINE: Aggressively optimized for Render's 512MB RAM
+    // 2. STEALTH ENGINE: (TechCrunch, ZDNet)
     const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-dev-shm-usage', '--single-process'] 
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
     });
     const page = await browser.newPage();
 
     try {
-        // "Sniper" Mode: Kill all non-essential assets immediately
+        // Snipe Mode: Block everything but the raw text document
         await page.route('**/*', (route) => {
             const type = route.request().resourceType();
-            if (['image', 'media', 'font', 'stylesheet', 'other'].includes(type)) {
-                return route.abort();
-            }
+            if (['image', 'media', 'font', 'stylesheet', 'other'].includes(type)) return route.abort();
             route.continue();
         });
 
-        // Fast-Exit Navigation
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        // Fast-Exit Navigation (waitUntil: 'commit' is the fastest possible state)
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
         
-        // Don't wait for "Load"—just wait for any paragraph tag to appear
-        await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
+        // Race: Stop the moment content appears
+        await Promise.race([
+            page.waitForSelector('p', { timeout: 8000 }),
+            new Promise(res => setTimeout(res, 8000))
+        ]);
 
         const html = await page.content();
         return distill(html, url);
@@ -74,7 +78,7 @@ async function scrapeSmart(url) {
 
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
-    if (!url) return res.status(400).json({ error: "URL required" });
+    if (!url) return res.status(400).json({ error: "URL Required" });
     try {
         const data = await scrapeSmart(url);
         res.json({ success: true, ...data });
@@ -84,4 +88,4 @@ app.get('/scrape', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Ghost-Scrape Engine v3.5 Live` || "Server Error"));
+app.listen(PORT, () => console.log(`🚀 Engine v4.0 (Ghost-Scrape) Live on ${PORT}`));
