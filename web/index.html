@@ -11,28 +11,65 @@
 
 <div class="max-w-4xl mx-auto py-12 px-6">
 
-    <h1 class="text-4xl font-bold mb-6 text-blue-400">👻 GhostScrape</h1>
+    <h1 class="text-4xl font-bold mb-2 text-blue-400">👻 GhostScrape</h1>
+    <p class="text-gray-400 mb-6">Distill the internet into readable chaos</p>
 
+    <!-- INPUT -->
     <div class="flex gap-2">
-        <input id="urlInput" type="text" placeholder="Paste any URL..."
+        <input id="urlInput" type="text"
+            placeholder="Paste URL or pick a suggestion..."
             class="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg outline-none">
 
         <button onclick="scrape()"
-            class="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-500">
+            class="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-500 transition">
             Distill
         </button>
     </div>
 
+    <!-- SUGGESTIONS -->
+    <div class="mt-4 flex gap-2 flex-wrap">
+        <button onclick="setUrl('https://en.wikipedia.org/wiki/Artificial_intelligence')"
+            class="text-xs bg-gray-800 px-3 py-1 rounded">Wikipedia AI</button>
+
+        <button onclick="setUrl('https://www.geeksforgeeks.org/data-structures/')"
+            class="text-xs bg-gray-800 px-3 py-1 rounded">GFG DS</button>
+
+        <button onclick="setUrl('https://developer.mozilla.org/en-US/docs/Web/JavaScript')"
+            class="text-xs bg-gray-800 px-3 py-1 rounded">MDN JS</button>
+    </div>
+
+    <!-- STATUS -->
     <p id="status" class="text-sm text-gray-400 mt-4"></p>
 
+    <!-- LOADER -->
+    <div id="loader" class="hidden mt-4 text-blue-400">
+        ⏳ Distilling reality...
+    </div>
+
+    <!-- RESULT -->
     <div id="result" class="mt-8 hidden">
-        <h2 id="title" class="text-2xl font-bold mb-4"></h2>
+
+        <div class="flex justify-between items-center mb-3">
+            <h2 id="title" class="text-2xl font-bold"></h2>
+
+            <button onclick="copyOutput()"
+                class="text-xs bg-gray-800 px-3 py-1 rounded hover:bg-gray-700">
+                Copy
+            </button>
+        </div>
 
         <div class="text-sm text-gray-400 mb-4">
             <span id="time"></span> • <span id="reduction"></span>
         </div>
 
-        <pre id="output" class="bg-gray-900 p-4 rounded-lg overflow-auto text-sm whitespace-pre-wrap"></pre>
+        <pre id="output"
+            class="bg-gray-900 p-4 rounded-lg overflow-auto text-sm whitespace-pre-wrap max-h-[500px]"></pre>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="mt-10">
+        <h3 class="text-gray-400 text-sm mb-2">Recent URLs</h3>
+        <div id="history" class="flex flex-wrap gap-2"></div>
     </div>
 
 </div>
@@ -40,23 +77,63 @@
 <script>
 const API = "https://ghost-scrape-production.up.railway.app";
 
+function setUrl(url) {
+    document.getElementById("urlInput").value = url;
+}
+
+// 📜 HISTORY
+function saveHistory(url) {
+    let history = JSON.parse(localStorage.getItem("ghost_history") || "[]");
+
+    history = [url, ...history.filter(u => u !== url)].slice(0, 5);
+
+    localStorage.setItem("ghost_history", JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    const history = JSON.parse(localStorage.getItem("ghost_history") || "[]");
+    const div = document.getElementById("history");
+
+    div.innerHTML = history.map(url =>
+        `<button onclick="setUrl('${url}')"
+        class="text-xs bg-gray-800 px-2 py-1 rounded hover:bg-gray-700">${url.slice(0,40)}...</button>`
+    ).join('');
+}
+
+renderHistory();
+
+// ⌨️ ENTER KEY SUPPORT
+document.getElementById("urlInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") scrape();
+});
+
+// 📋 COPY
+function copyOutput() {
+    const text = document.getElementById("output").innerText;
+    navigator.clipboard.writeText(text);
+    alert("Copied!");
+}
+
+// ⚡ SCRAPE
 async function scrape() {
     const url = document.getElementById("urlInput").value.trim();
+
     const status = document.getElementById("status");
+    const loader = document.getElementById("loader");
     const resultDiv = document.getElementById("result");
 
     if (!url) return;
 
-    status.innerText = "⏳ Processing...";
+    status.innerText = "";
+    loader.classList.remove("hidden");
     resultDiv.classList.add("hidden");
 
     try {
         const res = await fetch(`${API}/scrape?url=${encodeURIComponent(url)}`);
         const data = await res.json();
 
-        if (!data.success) {
-            throw new Error(data.error);
-        }
+        if (!data.success) throw new Error(data.error);
 
         document.getElementById("title").innerText = data.title;
         document.getElementById("output").innerText = data.markdown;
@@ -66,12 +143,15 @@ async function scrape() {
         document.getElementById("time").innerText = `${data.time_ms} ms`;
         document.getElementById("reduction").innerText = `${reduction}% smaller`;
 
+        saveHistory(url);
+
         status.innerText = "✅ Done";
         resultDiv.classList.remove("hidden");
 
     } catch (err) {
-        console.error(err);
         status.innerText = "❌ " + err.message;
+    } finally {
+        loader.classList.add("hidden");
     }
 }
 </script>
