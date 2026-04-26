@@ -12,9 +12,6 @@ chromium.use(stealth);
 const app = express();
 app.use(cors());
 
-// GLOBAL CACHE (The ultimate speed trick)
-const memoryCache = new Map();
-
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside', 'header']);
 
@@ -35,26 +32,17 @@ function distill(html, url) {
 }
 
 async function scrapeSmart(url) {
-    // 0. CHECK CACHE (Instant)
-    if (memoryCache.has(url)) return memoryCache.get(url);
-
-    // 1. "ZERO-BROWSER" PATH (Wikipedia, GitHub, News)
-    // We use a high-authority Chrome User-Agent to avoid the 23s delay
-    try {
-        const response = await axios.get(url, { 
-            timeout: 5000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' } 
+    // 🎯 FIX 1: THE WIKIPEDIA SPEED HACK (Sub-500ms)
+    if (url.includes('wikipedia.org')) {
+        const title = url.split('/wiki/').pop();
+        const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/html/${title}`;
+        const { data: html } = await axios.get(apiUrl, { 
+            headers: { 'User-Agent': 'GhostScrape/1.0 (contact@ghost-scrape.tech)' }
         });
-        const result = distill(response.data, url);
-        if (result && result.markdown.length > 200) {
-            memoryCache.set(url, result);
-            return result;
-        }
-    } catch (e) {
-        console.log("Fast fetch failed, using emergency browser...");
+        return distill(html, url);
     }
 
-    // 2. EMERGENCY BROWSER (Only for sites that block Axios)
+    // 🎯 FIX 2: THE "SNIPER" BROWSER (For TechCrunch/ZDNet)
     const browser = await chromium.launch({ 
         headless: true, 
         args: ['--no-sandbox', '--disable-dev-shm-usage', '--single-process'] 
@@ -62,14 +50,19 @@ async function scrapeSmart(url) {
     const page = await browser.newPage();
 
     try {
-        await page.route('**/*', (r) => ['document'].includes(r.request().resourceType()) ? r.continue() : r.abort());
+        // Block everything but text data
+        await page.route('**/*', (route) => {
+            return ['document', 'script'].includes(route.request().resourceType()) ? route.continue() : route.abort();
+        });
+
+        // Use 'commit' instead of 'load' - this stops the clock 20 seconds earlier
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
         
-        // Wait for ONLY the main frame to commit, then grab and go
-        await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+        // Grab content the moment the first paragraph exists
+        await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
+
         const html = await page.content();
-        const result = distill(html, url);
-        memoryCache.set(url, result);
-        return result;
+        return distill(html, url);
     } finally {
         await browser.close();
     }
@@ -81,8 +74,8 @@ app.get('/scrape', async (req, res) => {
         const data = await scrapeSmart(url);
         res.json({ success: true, ...data });
     } catch (e) {
-        res.status(500).json({ error: "Speed limit exceeded. Try again." });
+        res.status(500).json({ error: "Site is too slow or protected." });
     }
 });
 
-app.listen(5000, () => console.log("🚀 GHOST-SPEED ENGINE ACTIVE"));
+app.listen(5000, () => console.log("🚀 ULTRA-SPEED ENGINE LIVE"));
