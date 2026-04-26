@@ -7,131 +7,139 @@ const TurndownService = require("turndown");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const dns = require("dns").promises;
+const { chromium } = require("playwright");
 
 require("dotenv").config();
 
 const app = express();
 
-/* ---------------- SECURITY ---------------- */
 app.use(helmet());
 app.use(cors({ origin: "*" }));
-app.use(rateLimit({ windowMs: 60 * 1000, max: 30 }));
+app.use(rateLimit({ windowMs: 60 * 1000, max: 40 }));
 
-/* ---------------- CACHE ---------------- */
 const cache = new Map();
-const CACHE_TTL = 1000 * 60 * 30; // 30 min
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
-/* ---------------- TURNDOWN CONFIG ---------------- */
-// Initialize once outside to be efficient
-const turndown = new TurndownService({
-    headingStyle: "atx",
-    codeBlockStyle: "fenced",
-    hr: "---"
-});
+const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
 
-/* ---------------- HELPERS ---------------- */
-async function validateUrl(input) {
+/* ---------------- 1. FAST FETCH (AXIOS) ---------------- */
+async function fetchFast(url) {
+    console.log("🚀 Attempting Fast Fetch...");
+    const response = await axios.get(url, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+        },
+        timeout: 8000
+    });
+    return response.data;
+}
+
+/* ---------------- 2. STEALTH FETCH (PLAYWRIGHT) ---------------- */
+async function fetchStealth(url) {
+    console.log("🕵️ Fast Fetch blocked or failed. Switching to Stealth Mode...");
+    const browser = await chromium.launch({ headless: true });
     try {
-        const parsed = new URL(input);
-        if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Only HTTP/HTTPS allowed");
+        const context = await browser.newContext({
+            viewport: { width: 1280, height: 800 }
+        });
+        const page = await context.newPage();
+        // Wait for 'load' instead of 'networkidle' for speed, or 'domcontentloaded'
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
         
-        const hostname = parsed.hostname.toLowerCase();
-        if (["localhost", "127.0.0.1", "0.0.0.0"].includes(hostname)) throw new Error("Blocked host");
-
-        const { address } = await dns.lookup(hostname);
-        if (address.startsWith("10.") || address.startsWith("192.168.") || address.startsWith("172.")) {
-            throw new Error("Private network blocked");
-        }
-        return parsed.toString();
-    } catch (e) {
-        throw new Error(e.message || "Invalid URL");
+        // Optional: wait a tiny bit for JS to execute
+        await page.waitForTimeout(1000); 
+        
+        return await page.content();
+    } finally {
+        await browser.close();
     }
 }
 
-/* ---------------- DISTILL ENGINE ---------------- */
+/* ---------------- REFINED SSRF CHECK ---------------- */
+async function validateUrl(input) {
+    const parsed = new URL(input);
+    const hostname = parsed.hostname.toLowerCase();
+    
+    if (["localhost", "127.0.0.1", "::1"].includes(hostname)) throw new Error("Local access forbidden");
+
+    const { address } = await dns.lookup(hostname);
+    
+    // Narrower check for 172 range to avoid blocking public IPs mistakenly
+    const isPrivate = 
+        address.startsWith("10.") || 
+        address.startsWith("192.168.") ||
+        (address.startsWith("172.") && parseInt(address.split(".")[1]) >= 16 && parseInt(address.split(".")[1]) <= 31) ||
+        address.startsWith("169.254.");
+
+    if (isPrivate) throw new Error("Security Block: Private network detected");
+    return parsed.toString();
+}
+
+/* ---------------- DISTILL ---------------- */
 function distill(html, url) {
-    const rawChars = html.length;
     const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
+    const article = new Readability(dom.window.document).parse();
 
-    // Use Readability first to find the "meat" of the page
-    const reader = new Readability(doc);
-    const article = reader.parse();
+    if (!article) return null;
 
-    let title = "Untitled";
-    let markdown = "";
-    let mode = "fallback";
-
-    if (article && article.content) {
-        title = article.title;
-        markdown = turndown.turndown(article.content);
-        mode = "readability";
-    } else {
-        // Fallback: Just grab body text if Readability fails
-        title = doc.title || "Untitled";
-        markdown = doc.body?.textContent?.slice(0, 20000) || "";
-    }
-
+    const markdown = turndown.turndown(article.content);
     return {
-        title,
-        markdown,
-        mode,
-        stats: {
-            raw_chars: rawChars,
-            distilled_chars: markdown.length
-        }
+        title: article.title,
+        markdown: markdown,
+        stats: { raw_chars: html.length, distilled_chars: markdown.length }
     };
 }
 
-/* ---------------- ROUTES ---------------- */
-app.get("/", (req, res) => res.send("👻 GhostScrape API active"));
-
+/* ---------------- MAIN ROUTE ---------------- */
 app.get("/scrape", async (req, res) => {
+    let { url } = req.query;
+    if (!url) return res.status(400).json({ success: false, error: "URL is required" });
+
     try {
-        const { url } = req.query;
-        if (!url) return res.status(400).json({ success: false, error: "Missing URL" });
+        url = await validateUrl(url);
 
-        const safeUrl = await validateUrl(url);
-
-        // Cache Check
-        if (cache.has(safeUrl)) {
-            const cached = cache.get(safeUrl);
-            if (Date.now() - cached.time < CACHE_TTL) {
-                return res.json({ success: true, ...cached.data, cached: true });
-            }
+        // Check Cache
+        if (cache.has(url)) {
+            const cached = cache.get(url);
+            if (Date.now() - cached.time < CACHE_TTL) return res.json({ ...cached.data, cached: true });
         }
 
         const start = Date.now();
-        
-        // Fetch
-        const response = await axios.get(safeUrl, {
-            headers: { "User-Agent": "Mozilla/5.0 GhostScrape/1.0" },
-            timeout: 15000
-        });
+        let html;
+        let mode = "fast";
 
-        // Distill
-        const result = distill(response.data, safeUrl);
-        const processingTime = Date.now() - start;
+        try {
+            html = await fetchFast(url);
+        } catch (fastErr) {
+            // If we get a 403, 401, or 429, we swap to Stealth
+            const status = fastErr.response?.status;
+            if (status === 403 || status === 401 || status === 429 || fastErr.code === 'ECONNABORTED') {
+                html = await fetchStealth(url);
+                mode = "stealth";
+            } else {
+                throw fastErr; // Real error (like 404 or DNS fail)
+            }
+        }
 
-        const finalResponse = {
+        const result = distill(html, url);
+        if (!result) throw new Error("Failed to parse content");
+
+        const responseData = {
             success: true,
-            time_ms: processingTime,
+            mode,
+            time_ms: Date.now() - start,
             ...result
         };
 
-        // Save to cache
-        cache.set(safeUrl, { data: finalResponse, time: Date.now() });
-
-        res.json(finalResponse);
+        cache.set(url, { data: responseData, time: Date.now() });
+        res.json(responseData);
 
     } catch (err) {
         console.error("Scrape Error:", err.message);
-        res.status(500).json({
-            success: false,
-            error: err.message || "Failed to process page"
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+app.listen(PORT, () => console.log(`👻 GhostScrape running on ${PORT}`));
