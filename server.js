@@ -12,12 +12,7 @@ chromium.use(stealth);
 const app = express();
 app.use(cors());
 
-// Simple In-Memory Cache (The "Instant" Win)
-const cache = new Map();
-
-const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
-turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'header']);
-
+// Shared distillation logic
 function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
@@ -35,47 +30,43 @@ function distill(html, url) {
 }
 
 async function scrapeSmart(url) {
-    // 1. CACHE CHECK
-    if (cache.has(url)) {
-        console.log("🎯 Cache Hit: Instant Return");
-        return cache.get(url);
-    }
-
-    // 2. FAST PATH (Wikipedia/GitHub) - Identity Fix included
+    // 1. TURBO PATH: Wikipedia & GitHub (Identity spoofed for instant speed)
     if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        const { data: html } = await axios.get(url, { 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } 
+        console.log("⚡ Turbo Path Active");
+        const response = await axios.get(url, { 
+            timeout: 10000,
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
+            }
         });
-        const result = distill(html, url);
-        cache.set(url, result); // Save to cache
-        return result;
+        return distill(response.data, url);
     }
 
-    // 3. OPTIMIZED CHROMIUM (Lighter than Firefox)
+    // 2. STEALTH ENGINE: Aggressively optimized for Render's 512MB RAM
     const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
+        args: ['--no-sandbox', '--disable-dev-shm-usage', '--single-process'] 
     });
     const page = await browser.newPage();
 
     try {
+        // "Sniper" Mode: Kill all non-essential assets immediately
         await page.route('**/*', (route) => {
             const type = route.request().resourceType();
-            // Aggressively block everything but the document
-            if (['document'].includes(type)) return route.continue();
-            return route.abort();
+            if (['image', 'media', 'font', 'stylesheet', 'other'].includes(type)) {
+                return route.abort();
+            }
+            route.continue();
         });
 
-        // Use 'commit' instead of 'domcontentloaded' for ultra-fast exit
-        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        // Fast-Exit Navigation
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
         
-        // Wait for the FIRST paragraph and stop immediately
-        await page.waitForSelector('p', { timeout: 3000 }).catch(() => null);
+        // Don't wait for "Load"—just wait for any paragraph tag to appear
+        await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
 
         const html = await page.content();
-        const result = distill(html, url);
-        cache.set(url, result);
-        return result;
+        return distill(html, url);
     } finally {
         await browser.close();
     }
@@ -83,7 +74,7 @@ async function scrapeSmart(url) {
 
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
-    if (!url) return res.status(400).send("Missing URL");
+    if (!url) return res.status(400).json({ error: "URL required" });
     try {
         const data = await scrapeSmart(url);
         res.json({ success: true, ...data });
@@ -92,4 +83,5 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
-app.listen(5000, () => console.log("🚀 Hyper-Engine Live"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Ghost-Scrape Engine v3.5 Live` || "Server Error"));
