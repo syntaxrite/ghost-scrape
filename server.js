@@ -21,6 +21,23 @@ app.use(rateLimit({
 const cache = new Map();
 const CACHE_TTL = 1000 * 60 * 30;
 
+// 🎭 ROTATING USER AGENTS (basic anti-bot)
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/119 Safari/537.36'
+];
+
+function getHeaders() {
+    const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+    return {
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'keep-alive'
+    };
+}
+
 // 📄 MARKDOWN ENGINE
 const turndown = new TurndownService();
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img']);
@@ -52,16 +69,24 @@ function distill(html, url) {
     };
 }
 
-// ⚡ FETCH
+// ⚡ SMART FETCH (retry + anti-bot)
 async function fetchPage(url) {
-    const { data } = await axios.get(url, {
-        timeout: 15000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (GhostScrape)'
-        }
-    });
-
-    return distill(data, url);
+    try {
+        const { data } = await axios.get(url, {
+            timeout: 15000,
+            headers: getHeaders(),
+            maxRedirects: 5
+        });
+        return data;
+    } catch (err) {
+        // retry once with new headers
+        console.log("🔁 Retry with new headers...");
+        const { data } = await axios.get(url, {
+            timeout: 15000,
+            headers: getHeaders()
+        });
+        return data;
+    }
 }
 
 // 🔍 VALIDATION
@@ -76,35 +101,32 @@ function isValidUrl(url) {
 
 // 🎯 SCRAPER
 async function scrape(url) {
+
     console.log("👉 Scraping:", url);
 
+    // ⚡ CACHE
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.time < CACHE_TTL)) {
         console.log("⚡ Cache hit");
         return { ...cached.data, cached: true };
     }
 
-    let result;
+    let html;
 
-    if (url.includes('wikipedia.org')) {
-        const parsedUrl = new URL(url);
-        const wikiPath = parsedUrl.pathname.split('/wiki/')[1];
-
-        if (!wikiPath) throw new Error('Invalid Wikipedia URL');
-
-        const title = encodeURIComponent(decodeURIComponent(wikiPath));
-        const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/html/${title}`;
-
-        const { data } = await axios.get(apiUrl);
-        result = distill(data, url);
-    } else {
-        result = await fetchPage(url);
+    try {
+        html = await fetchPage(url);
+    } catch (err) {
+        console.error("❌ Fetch failed:", err.message);
+        throw new Error("Failed to fetch page (blocked or timeout)");
     }
+
+    const result = distill(html, url);
 
     if (!result || !result.markdown) {
         throw new Error("No readable content found");
     }
 
+    // 🧹 CACHE LIMIT
     if (cache.size > 1000) cache.clear();
 
     cache.set(url, {
@@ -125,7 +147,7 @@ app.get('/scrape', async (req, res) => {
     const { url } = req.query;
 
     if (!url || !isValidUrl(url)) {
-        return res.status(400).json({ error: "Invalid URL" });
+        return res.status(400).json({ success: false, error: "Invalid URL" });
     }
 
     try {
@@ -139,7 +161,7 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (e) {
-        console.error("❌ SCRAPE ERROR:", e);
+        console.error("❌ SCRAPE ERROR:", e.message);
 
         res.status(500).json({
             success: false,
