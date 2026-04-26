@@ -1,35 +1,35 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const { JSDOM } = require('jsdom');
-const { Readability } = require('@mozilla/readability');
-const TurndownService = require('turndown');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const dns = require('dns').promises;
+const express = require("express");
+const cors = require("cors");
+const axios = require("axios");
+const { JSDOM } = require("jsdom");
+const { Readability } = require("@mozilla/readability");
+const TurndownService = require("turndown");
+const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const dns = require("dns").promises;
 
-require('dotenv').config();
+require("dotenv").config();
 
 const app = express();
 
-/* ---------------- SECURITY ---------------- */
+/* ---------------- SECURITY MIDDLEWARE ---------------- */
+
 app.use(helmet());
 
 app.use(cors({
-    origin: "*", // tighten later when deploying frontend
+    origin: "*", // tighten later in production
     methods: ["GET"],
 }));
 
 app.use(rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
-    standardHeaders: true,
-    legacyHeaders: false
+    max: 30
 }));
 
-/* ---------------- CACHE ---------------- */
+/* ---------------- SIMPLE CACHE ---------------- */
+
 const cache = new Map();
-const CACHE_TTL = 1000 * 60 * 30;
+const CACHE_TTL = 1000 * 60 * 30; // 30 min
 
 setInterval(() => {
     const now = Date.now();
@@ -40,21 +40,18 @@ setInterval(() => {
     }
 }, 60 * 1000);
 
-/* ---------------- USER AGENTS ---------------- */
-const USER_AGENTS = [
-    'Mozilla/5.0 Chrome/120 Safari/537.36',
-    'Mozilla/5.0 Safari/605.1.15',
-    'Mozilla/5.0 Chrome/119 Safari/537.36'
-];
+/* ---------------- USER AGENT ---------------- */
 
 function getHeaders() {
     return {
-        'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
-        'Accept': 'text/html,application/xhtml+xml'
+        "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml"
     };
 }
 
 /* ---------------- SSRF PROTECTION ---------------- */
+
 async function validateUrl(input) {
     let parsed;
 
@@ -70,13 +67,8 @@ async function validateUrl(input) {
 
     const hostname = parsed.hostname.toLowerCase();
 
-    const blockedHosts = [
-        "localhost",
-        "127.0.0.1",
-        "0.0.0.0"
-    ];
-
-    if (blockedHosts.includes(hostname)) {
+    const blocked = ["localhost", "127.0.0.1", "0.0.0.0"];
+    if (blocked.includes(hostname)) {
         throw new Error("Blocked host");
     }
 
@@ -93,34 +85,38 @@ async function validateUrl(input) {
     return parsed.toString();
 }
 
-/* ---------------- CLEANUP ---------------- */
-function cleanDom(document) {
-    const selectors = [
-        'script','style','noscript','iframe',
-        'header','footer','nav','aside',
-        '[class*="ad"]','[id*="ad"]'
+/* ---------------- CLEAN DOM ---------------- */
+
+function cleanDom(doc) {
+    const removeSelectors = [
+        "script", "style", "noscript", "iframe",
+        "header", "footer", "nav", "aside",
+        "[class*='ad']", "[id*='ad']"
     ];
 
-    selectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.remove());
+    removeSelectors.forEach(sel => {
+        doc.querySelectorAll(sel).forEach(el => el.remove());
     });
 }
 
-/* ---------------- MEDIA ---------------- */
-function simplifyMedia(document) {
-    document.querySelectorAll('img').forEach(img => {
-        const src = img.src || "";
-        img.replaceWith(`[image](${src})`);
+/* ---------------- MEDIA CLEAN ---------------- */
+
+function simplifyMedia(doc) {
+    doc.querySelectorAll("img").forEach(img => {
+        const src = img.getAttribute("src");
+        if (src) img.replaceWith(`[image](${src})`);
     });
 }
 
-/* ---------------- MARKDOWN ENGINE ---------------- */
+/* ---------------- MARKDOWN ---------------- */
+
 const turndown = new TurndownService();
-turndown.remove(['script','style','iframe']);
+turndown.remove(["script", "style", "iframe"]);
 
-/* ---------------- DISTILL ---------------- */
-function distill(html, pageUrl) {
-    const dom = new JSDOM(html, { url: pageUrl });
+/* ---------------- DISTILL ENGINE ---------------- */
+
+function distill(html, url) {
+    const dom = new JSDOM(html, { url });
     const doc = dom.window.document;
 
     cleanDom(doc);
@@ -128,7 +124,7 @@ function distill(html, pageUrl) {
 
     const article = new Readability(doc).parse();
 
-    if (article?.content) {
+    if (article && article.content) {
         return {
             title: article.title,
             markdown: turndown.turndown(article.content),
@@ -144,6 +140,7 @@ function distill(html, pageUrl) {
 }
 
 /* ---------------- FETCH ---------------- */
+
 async function fetchPage(url) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -160,7 +157,8 @@ async function fetchPage(url) {
     }
 }
 
-/* ---------------- SCRAPE CORE ---------------- */
+/* ---------------- MAIN SCRAPER ---------------- */
+
 async function scrape(rawUrl) {
     const safeUrl = await validateUrl(rawUrl);
 
@@ -181,13 +179,16 @@ async function scrape(rawUrl) {
 }
 
 /* ---------------- ROUTES ---------------- */
-app.get('/', (req, res) => {
-    res.send("👻 GhostScrape API alive");
+
+app.get("/", (req, res) => {
+    res.send("👻 GhostScrape API running");
 });
 
-app.get('/scrape', async (req, res) => {
+app.get("/scrape", async (req, res) => {
     try {
-        const url = req.query.url;
+        const { url } = req.query;
+
+        console.log("Scraping:", url);
 
         if (!url) {
             return res.status(400).json({
@@ -206,6 +207,8 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (err) {
+        console.error("ERROR:", err.message);
+
         res.status(500).json({
             success: false,
             error: err.message
@@ -214,8 +217,9 @@ app.get('/scrape', async (req, res) => {
 });
 
 /* ---------------- START ---------------- */
+
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
     console.log(`👻 GhostScrape running on port ${PORT}`);
-});
+}); 
