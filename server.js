@@ -5,57 +5,35 @@ const stealth = require('puppeteer-extra-plugin-stealth')();
 const { Readability } = require('@mozilla/readability');
 const { JSDOM } = require('jsdom');
 const TurndownService = require('turndown');
-const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios'); // Add axios for the "Fast Path"
+const axios = require('axios'); // For lightning-fast fetches
 require('dotenv').config();
 
 chromium.use(stealth);
 const app = express();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-
-app.use(cors());
-app.use(express.json());
-
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside']);
 
-// Helper to distill HTML (Shared logic)
-function distill(html, url, maxTokens) {
+// Helper to turn HTML into clean Markdown
+function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
     if (!article) return null;
-
-    let markdown = turndown.turndown(article.content);
-    const charLimit = maxTokens * 4;
-    if (markdown.length > charLimit) {
-        markdown = markdown.substring(0, charLimit) + "\n\n... [Content Truncated]";
-    }
-
     return {
         title: article.title,
-        author: article.byline,
-        markdown: markdown,
-        stats: {
-            raw_chars: html.length,
-            distilled_chars: markdown.length,
-            savings: Math.round((1 - (markdown.length / html.length)) * 100) + "%"
-        }
+        markdown: turndown.turndown(article.content),
+        savings: Math.round((1 - (turndown.turndown(article.content).length / html.length)) * 100) + "%"
     };
 }
 
-async function scrapeSmart(url, maxTokens = 2000) {
-    // 1. LIGHTNING FAST PATH (Wikipedia, GitHub, etc.)
+async function scrapeSmart(url) {
+    // 1. FAST PATH: No browser needed for Wikipedia/GitHub
     if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        console.log("⚡ Fast Path: Using Axios for " + url);
-        try {
-            const { data: html } = await axios.get(url, { timeout: 10000 });
-            return distill(html, url, maxTokens);
-        } catch (e) {
-            console.log("Fast path failed, falling back to browser...");
-        }
+        console.log("⚡ Fast Path: Axios Fetching...");
+        const { data: html } = await axios.get(url, { timeout: 10000 });
+        return distill(html, url);
     }
 
-    // 2. TURBO BROWSER PATH (TechCrunch, BBC, ZDNet)
+    // 2. STEALTH PATH: Optimized Playwright for heavy sites
     const browser = await chromium.launch({ 
         headless: true, 
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
@@ -63,7 +41,7 @@ async function scrapeSmart(url, maxTokens = 2000) {
     const page = await browser.newPage();
 
     try {
-        // Block all "trash" resources immediately
+        // Block "Trash" (Ads/Images/CSS) immediately
         await page.route('**/*', (route) => {
             if (['image', 'media', 'font', 'stylesheet'].includes(route.request().resourceType())) {
                 return route.abort();
@@ -71,36 +49,33 @@ async function scrapeSmart(url, maxTokens = 2000) {
             route.continue();
         });
 
-        // ONE single navigation with a short timeout
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-        // Race: Stop as soon as content is found OR 5 seconds pass
+        // SINGLE NAVIGATION (This fixes your double-load bug)
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        
+        // Race: Stop as soon as content is visible
         await Promise.race([
-            page.waitForSelector('article', { timeout: 5000 }),
-            page.waitForSelector('main', { timeout: 5000 }),
-            page.waitForTimeout(5000)
+            page.waitForSelector('article', { timeout: 6000 }),
+            page.waitForSelector('main', { timeout: 6000 }),
+            page.waitForTimeout(6000)
         ]);
 
         const html = await page.content();
-        return distill(html, url, maxTokens);
+        return distill(html, url);
     } finally {
         await browser.close();
     }
 }
 
-// Routes
+app.use(cors());
 app.get('/scrape', async (req, res) => {
-    const { url, tokens = 2000 } = req.query;
+    const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL is required" });
     try {
-        const data = await scrapeSmart(url, parseInt(tokens));
+        const data = await scrapeSmart(url);
         res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.get('/', (req, res) => res.send("✅ Ghost-Scrape Hybrid Engine is LIVE"));
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Engine running on port ${PORT}`));
+app.listen(5000, () => console.log("🚀 Engine Live on 5000"));
