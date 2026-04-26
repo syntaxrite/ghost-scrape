@@ -91,7 +91,7 @@ function distill(html, url) {
 
         return {
             title: article.title,
-            markdown: md,
+            markdown: formatMarkdown(md),
             mode: "readability",
             stats: {
                 raw_chars: html.length,
@@ -100,10 +100,32 @@ function distill(html, url) {
         };
     }
 
+    function formatMarkdown(md) {
+    return md
+        // Add spacing after headings
+        .replace(/(#+ .+)/g, '\n$1\n')
+
+        // Fix bullet lists
+        .replace(/•/g, '\n- ')
+
+        // Add spacing after sentences
+        .replace(/([a-z])([A-Z])/g, '$1\n\n$2')
+
+        // Clean excessive spaces
+        .replace(/\s{2,}/g, ' ')
+
+        // Add spacing around code
+        .replace(/(const|let|var|function)/g, '\n\n$1')
+
+        .trim();
+}
+
     // 💀 Fallback: grab main content manually
     console.log("⚠️ Readability failed → fallback mode");
 
     let text = document.body.textContent
+    .replace(/\.\s+/g, '.\n\n') // sentence spacing
+    .replace(/:\s+/g, ':\n')    // headings
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 20000);
