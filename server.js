@@ -12,6 +12,9 @@ chromium.use(stealth);
 const app = express();
 app.use(cors());
 
+// GLOBAL CACHE (The ultimate speed trick)
+const memoryCache = new Map();
+
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside', 'header']);
 
@@ -32,45 +35,41 @@ function distill(html, url) {
 }
 
 async function scrapeSmart(url) {
-    // 1. TURBO PATH: Wikipedia & GitHub (Sub-second speed via Identity Spoofing)
-    if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        console.log("⚡ Turbo Path: Bypassing Tarpit");
+    // 0. CHECK CACHE (Instant)
+    if (memoryCache.has(url)) return memoryCache.get(url);
+
+    // 1. "ZERO-BROWSER" PATH (Wikipedia, GitHub, News)
+    // We use a high-authority Chrome User-Agent to avoid the 23s delay
+    try {
         const response = await axios.get(url, { 
-            timeout: 10000,
-            headers: { 
-                // This specific header is the "Magic Key" to avoid Wikipedia's 20s delay
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
-            }
+            timeout: 5000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' } 
         });
-        return distill(response.data, url);
+        const result = distill(response.data, url);
+        if (result && result.markdown.length > 200) {
+            memoryCache.set(url, result);
+            return result;
+        }
+    } catch (e) {
+        console.log("Fast fetch failed, using emergency browser...");
     }
 
-    // 2. STEALTH ENGINE: (TechCrunch, ZDNet)
+    // 2. EMERGENCY BROWSER (Only for sites that block Axios)
     const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
+        args: ['--no-sandbox', '--disable-dev-shm-usage', '--single-process'] 
     });
     const page = await browser.newPage();
 
     try {
-        // Snipe Mode: Block everything but the raw text document
-        await page.route('**/*', (route) => {
-            const type = route.request().resourceType();
-            if (['image', 'media', 'font', 'stylesheet', 'other'].includes(type)) return route.abort();
-            route.continue();
-        });
-
-        // Fast-Exit Navigation (waitUntil: 'commit' is the fastest possible state)
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+        await page.route('**/*', (r) => ['document'].includes(r.request().resourceType()) ? r.continue() : r.abort());
         
-        // Race: Stop the moment content appears
-        await Promise.race([
-            page.waitForSelector('p', { timeout: 8000 }),
-            new Promise(res => setTimeout(res, 8000))
-        ]);
-
+        // Wait for ONLY the main frame to commit, then grab and go
+        await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
         const html = await page.content();
-        return distill(html, url);
+        const result = distill(html, url);
+        memoryCache.set(url, result);
+        return result;
     } finally {
         await browser.close();
     }
@@ -78,14 +77,12 @@ async function scrapeSmart(url) {
 
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
-    if (!url) return res.status(400).json({ error: "URL Required" });
     try {
         const data = await scrapeSmart(url);
         res.json({ success: true, ...data });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: "Speed limit exceeded. Try again." });
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Engine v4.0 (Ghost-Scrape) Live on ${PORT}`));
+app.listen(5000, () => console.log("🚀 GHOST-SPEED ENGINE ACTIVE"));
