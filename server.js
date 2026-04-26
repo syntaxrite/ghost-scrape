@@ -5,7 +5,7 @@ const stealth = require('puppeteer-extra-plugin-stealth')();
 const { Readability } = require('@mozilla/readability');
 const { JSDOM } = require('jsdom');
 const TurndownService = require('turndown');
-const axios = require('axios'); // For lightning-fast fetches
+const axios = require('axios'); // Add this for Wikipedia speed
 require('dotenv').config();
 
 chromium.use(stealth);
@@ -13,35 +13,40 @@ const app = express();
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside']);
 
-// Helper to turn HTML into clean Markdown
+// Shared distillation logic
 function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
     if (!article) return null;
+    const md = turndown.turndown(article.content);
     return {
         title: article.title,
-        markdown: turndown.turndown(article.content),
-        savings: Math.round((1 - (turndown.turndown(article.content).length / html.length)) * 100) + "%"
+        markdown: md,
+        stats: {
+            raw_chars: html.length,
+            distilled_chars: md.length,
+            savings: Math.round((1 - (md.length / html.length)) * 100) + "%"
+        }
     };
 }
 
 async function scrapeSmart(url) {
-    // 1. FAST PATH: No browser needed for Wikipedia/GitHub
+    // 1. FAST PATH (Wikipedia/GitHub) - Zero Browser Overhead
     if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        console.log("⚡ Fast Path: Axios Fetching...");
-        const { data: html } = await axios.get(url, { timeout: 10000 });
+        console.log("⚡ Turbo Path: Using Axios");
+        const { data: html } = await axios.get(url, { timeout: 8000 });
         return distill(html, url);
     }
 
-    // 2. STEALTH PATH: Optimized Playwright for heavy sites
+    // 2. STEALTH PATH (TechCrunch/ZDNet) - One single load
     const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
+        args: ['--no-sandbox', '--disable-dev-shm-usage', '--single-process'] 
     });
     const page = await browser.newPage();
 
     try {
-        // Block "Trash" (Ads/Images/CSS) immediately
+        // Block trash immediately
         await page.route('**/*', (route) => {
             if (['image', 'media', 'font', 'stylesheet'].includes(route.request().resourceType())) {
                 return route.abort();
@@ -49,15 +54,11 @@ async function scrapeSmart(url) {
             route.continue();
         });
 
-        // SINGLE NAVIGATION (This fixes your double-load bug)
+        // ONLY ONE GOTO CALL (This fixes your timeout bug)
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
         
-        // Race: Stop as soon as content is visible
-        await Promise.race([
-            page.waitForSelector('article', { timeout: 6000 }),
-            page.waitForSelector('main', { timeout: 6000 }),
-            page.waitForTimeout(6000)
-        ]);
+        // Wait max 5 seconds for text to appear
+        await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
 
         const html = await page.content();
         return distill(html, url);
@@ -78,4 +79,4 @@ app.get('/scrape', async (req, res) => {
     }
 });
 
-app.listen(5000, () => console.log("🚀 Engine Live on 5000"));
+app.listen(5000, () => console.log("🚀 Engine Live I guess"));
