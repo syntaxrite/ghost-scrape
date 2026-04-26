@@ -5,10 +5,16 @@ const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const TurndownService = require('turndown');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const dns = require('dns').promises;
+const url = require('url');
 
 require('dotenv').config();
 
 const app = express();
+
+// 🛡️ SECURITY
+app.use(helmet());
 app.use(cors());
 
 // 🚧 RATE LIMIT
@@ -17,32 +23,77 @@ app.use(rateLimit({
     max: 30
 }));
 
-// 🧠 CACHE
+// 🧠 CACHE (with TTL cleanup)
 const cache = new Map();
 const CACHE_TTL = 1000 * 60 * 30;
 
-// 🎭 USER AGENTS (basic anti-bot)
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of cache.entries()) {
+        if (now - value.time > CACHE_TTL) cache.delete(key);
+    }
+}, 60 * 1000);
+
+// 🎭 USER AGENTS
 const USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17 Safari/605.1.15',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/119 Safari/537.36'
+    'Mozilla/5.0 Chrome/120 Safari/537.36',
+    'Mozilla/5.0 Safari/605.1.15',
+    'Mozilla/5.0 Chrome/119 Safari/537.36'
 ];
 
+// 🔐 URL VALIDATION + SSRF PROTECTION
+async function validateUrl(input) {
+    let parsed;
+    try {
+        parsed = new URL(input);
+    } catch {
+        throw new Error("Invalid URL");
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error("Only HTTP/HTTPS allowed");
+    }
+
+    const hostname = parsed.hostname;
+
+    // block localhost + private IPs
+    const blocked = [
+        'localhost',
+        '127.0.0.1',
+        '0.0.0.0'
+    ];
+
+    if (blocked.includes(hostname)) {
+        throw new Error("Blocked host");
+    }
+
+    const ips = await dns.lookup(hostname);
+
+    if (
+        ips.address.startsWith('10.') ||
+        ips.address.startsWith('192.168.') ||
+        ips.address.startsWith('172.')
+    ) {
+        throw new Error("Private network blocked");
+    }
+
+    return parsed.toString();
+}
+
+// 📡 HEADERS
 function getHeaders() {
     return {
         'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9'
+        'Accept': 'text/html,application/xhtml+xml'
     };
 }
 
-// 🧹 CLEAN DOM
+// 🧹 CLEAN
 function cleanDom(document) {
     const selectors = [
         'script','style','noscript','iframe',
         'header','footer','nav','aside',
-        '[class*="ad"]','[id*="ad"]',
-        '.sidebar','.popup','.banner'
+        '[class*="ad"]','[id*="ad"]'
     ];
 
     selectors.forEach(sel => {
@@ -50,163 +101,77 @@ function cleanDom(document) {
     });
 }
 
-// 🖼️ SIMPLIFY MEDIA
+// 🖼️ MEDIA
 function simplifyMedia(document) {
     document.querySelectorAll('img').forEach(img => {
-        const src = img.src || '';
-        img.replaceWith(`![image](${src})`);
-    });
-
-    document.querySelectorAll('video').forEach(() => {
-        const txt = document.createTextNode('[Video removed]');
-        document.body.appendChild(txt);
+        const src = img.src;
+        img.replaceWith(`[image](${src})`);
     });
 }
 
-// 🧠 FORMAT MARKDOWN
-function formatMarkdown(text) {
-    text = text.replace(/\s+/g, ' ').trim();
-
-    let sentences = text.split(/(?<=\.)\s+/);
-    let result = [];
-    let block = "";
-
-    for (let s of sentences) {
-
-        if (
-            s.includes("Features of") ||
-            s.includes("Working of") ||
-            s.includes("Components of") ||
-            s.includes("Use Cases") ||
-            s.includes("Hello, World")
-        ) {
-            if (block) {
-                result.push(block.trim());
-                block = "";
-            }
-            result.push(`\n## ${s.trim()}\n`);
-            continue;
-        }
-
-        if (s.includes(":") && s.length < 120) {
-            result.push(`- ${s.trim()}`);
-            continue;
-        }
-
-        block += s + " ";
-
-        if (block.length > 300) {
-            result.push(block.trim());
-            block = "";
-        }
-    }
-
-    if (block) result.push(block.trim());
-
-    let final = result.join("\n\n");
-
-    final = final.replace(/const .*?;/g, m => `\n\`\`\`js\n${m}\n\`\`\`\n`);
-
-    return final.trim();
-}
-
-// 📄 MARKDOWN ENGINE
+// 🧠 MARKDOWN ENGINE
 const turndown = new TurndownService();
-turndown.remove(['script','style','iframe','svg']);
+turndown.remove(['script','style','iframe']);
 
-// 🎯 DISTILL
-function distill(html, url) {
-
-    const dom = new JSDOM(html, { url });
-    const originalDoc = dom.window.document;
-
-    if (!originalDoc || !originalDoc.body) {
-        throw new Error("Invalid DOM");
-    }
-
-    // clone safely
-    const cloned = new JSDOM(originalDoc.documentElement.outerHTML, { url });
-    const doc = cloned.window.document;
+// 📄 DISTILL
+function distill(html, pageUrl) {
+    const dom = new JSDOM(html, { url: pageUrl });
+    const doc = dom.window.document;
 
     cleanDom(doc);
     simplifyMedia(doc);
 
-    // 🔥 GFG special
-    if (url.includes('geeksforgeeks.org')) {
-        const main = doc.querySelector('.text');
-        if (main && main.textContent.length > 200) {
-            const md = turndown.turndown(main.innerHTML);
-            return {
-                title: doc.title,
-                markdown: formatMarkdown(md),
-                mode: "gfg",
-                stats: {
-                    raw_chars: html.length,
-                    distilled_chars: md.length
-                }
-            };
-        }
-    }
+    const article = new Readability(doc).parse();
 
-    // 🧠 Readability
-    let article;
-    try {
-        article = new Readability(doc).parse();
-    } catch (e) {
-        console.error("Readability error:", e.message);
-    }
-
-    if (article && article.textContent && article.textContent.length > 300) {
+    if (article?.content) {
         const md = turndown.turndown(article.content);
 
         return {
             title: article.title,
-            markdown: formatMarkdown(md),
-            mode: "readability",
-            stats: {
-                raw_chars: html.length,
-                distilled_chars: md.length
-            }
+            markdown: md,
+            mode: "readability"
         };
     }
 
-    // 💀 fallback
-    let text = originalDoc.body.textContent
-        .replace(/\.\s+/g, '.\n\n')
-        .slice(0, 20000);
-
     return {
-        title: originalDoc.title || "Untitled",
-        markdown: formatMarkdown(text),
-        mode: "fallback",
-        stats: {
-            raw_chars: html.length,
-            distilled_chars: text.length
-        }
+        title: doc.title,
+        markdown: doc.body.textContent.slice(0, 20000),
+        mode: "fallback"
     };
 }
 
-// ⚡ FETCH
-async function fetchPage(url) {
-    const { data } = await axios.get(url, {
-        timeout: 15000,
-        headers: getHeaders()
-    });
-    return data;
+// 📥 FETCH with abort control
+async function fetchPage(targetUrl) {
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const res = await axios.get(targetUrl, {
+            headers: getHeaders(),
+            signal: controller.signal
+        });
+
+        return res.data;
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 // 🎯 SCRAPE
-async function scrape(url) {
+async function scrape(rawUrl) {
 
-    const cached = cache.get(url);
+    const safeUrl = await validateUrl(rawUrl);
+
+    const cached = cache.get(safeUrl);
     if (cached && Date.now() - cached.time < CACHE_TTL) {
         return { ...cached.data, cached: true };
     }
 
-    const html = await fetchPage(url);
-    const result = distill(html, url);
+    const html = await fetchPage(safeUrl);
+    const result = distill(html, safeUrl);
 
-    cache.set(url, {
+    cache.set(safeUrl, {
         data: result,
         time: Date.now()
     });
@@ -216,19 +181,17 @@ async function scrape(url) {
 
 // 🌐 ROUTES
 app.get('/', (req, res) => {
-    res.send("👻 GhostScrape API alive");
+    res.send("GhostScrape API alive");
 });
 
 app.get('/scrape', async (req, res) => {
-    const { url } = req.query;
-
-    if (!url) {
-        return res.status(400).json({ success: false, error: "Missing URL" });
-    }
-
     try {
+        if (!req.query.url) {
+            return res.status(400).json({ error: "Missing URL" });
+        }
+
         const start = Date.now();
-        const data = await scrape(url);
+        const data = await scrape(req.query.url);
 
         res.json({
             success: true,
@@ -236,18 +199,15 @@ app.get('/scrape', async (req, res) => {
             ...data
         });
 
-    } catch (e) {
-        console.error("SCRAPE ERROR:", e.message);
-
+    } catch (err) {
         res.status(500).json({
             success: false,
-            error: e.message
+            error: err.message
         });
     }
 });
 
-// 🚀 START
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`🚀 GhostScrape running on ${PORT}`);
+    console.log(`GhostScrape running on ${PORT}`);
 });
