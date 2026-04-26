@@ -1,153 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost-Scrape | Smart Distillation</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostScrape</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-gray-200 font-sans selection:bg-blue-500/30">
-    <div class="max-w-5xl mx-auto py-12 px-6">
-        <header class="flex justify-between items-center mb-12">
-            <div>
-                <h1 class="text-4xl font-black bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">GHOST-SCRAPE</h1>
-                <p class="text-gray-500 font-medium">Smart Web-to-Markdown Engine</p>
-            </div>
-            <div class="flex gap-4">
-                <div class="text-right">
-                    <p class="text-xs text-gray-500 uppercase tracking-widest">Total Value Created</p>
-                    <p id="totalSavings" class="text-xl font-mono text-green-400">$0.00 saved</p>
-                </div>
-            </div>
-        </header>
-        
-        <div class="group relative bg-gray-900/50 p-2 rounded-2xl border border-gray-800 focus-within:border-blue-500/50 transition-all shadow-2xl">
-            <div class="flex flex-col md:flex-row gap-2">
-                <div class="flex-1 flex items-center px-4">
-                    <i data-lucide="link" class="text-gray-500 w-5 h-5 mr-3"></i>
-                    <input id="targetUrl" type="text" placeholder="Paste URL (Wikipedia, TechCrunch, etc.)" 
-                        class="w-full bg-transparent py-4 outline-none text-lg text-white placeholder:text-gray-600">
-                </div>
-                <button onclick="runScrape()" 
-                    class="bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 group-active:scale-95">
-                    <span>Distill</span>
-                    <i data-lucide="zap" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
 
-        <div id="loader" class="hidden mt-12">
-            <div class="max-w-xs mx-auto space-y-4">
-                <div class="flex items-center gap-3 text-blue-400">
-                    <div class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                    <p id="loadingStatus" class="text-sm font-mono uppercase tracking-tighter">Initializing Ghost Engine...</p>
-                </div>
-                <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                    <div id="progressBar" class="bg-blue-500 h-full w-0 transition-all duration-500"></div>
-                </div>
-            </div>
-        </div>
+<body class="bg-black text-white font-sans">
 
-        <div id="results" class="hidden mt-12 grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="lg:col-span-1 space-y-4">
-                <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl">
-                    <p class="text-xs text-gray-500 uppercase mb-4">Distillation Stats</p>
-                    <div class="space-y-4">
-                        <div>
-                            <p class="text-2xl font-bold text-white" id="statSavings">0%</p>
-                            <p class="text-[10px] text-gray-500 uppercase italic">Token Reduction</p>
-                        </div>
-                        <div class="pt-4 border-t border-gray-800">
-                            <p class="text-lg font-mono text-blue-400" id="statTime">0.8s</p>
-                            <p class="text-[10px] text-gray-500 uppercase italic">Execution Time</p>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="copyToClipboard()" class="w-full py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
-                    <i data-lucide="copy" class="w-4 h-4"></i> Copy Markdown
-                </button>
-            </div>
+<div class="max-w-4xl mx-auto py-12 px-6">
 
-            <div class="lg:col-span-3">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
-                        <h3 id="pageTitle" class="font-bold text-gray-300 truncate pr-4">Untitled Document</h3>
-                        <span id="modeBadge" class="text-[10px] px-2 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">HYBRID_MODE</span>
-                    </div>
-                    <div class="p-0">
-                        <pre id="output" class="p-6 text-sm font-mono h-[500px] overflow-auto whitespace-pre-wrap leading-relaxed text-gray-400 custom-scrollbar bg-black/20"></pre>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <h1 class="text-4xl font-bold mb-6 text-blue-400">👻 GhostScrape</h1>
+
+    <div class="flex gap-2">
+        <input id="urlInput" type="text" placeholder="Paste any URL..."
+            class="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg outline-none">
+
+        <button onclick="scrape()"
+            class="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-500">
+            Distill
+        </button>
     </div>
 
-    <script>
-    lucide.createIcons();
+    <p id="status" class="text-sm text-gray-400 mt-4"></p>
 
-    const API = "https://ghost-scrape.up.railway.app"; // your backend
+    <div id="result" class="mt-8 hidden">
+        <h2 id="title" class="text-2xl font-bold mb-4"></h2>
 
-    let totalDollarSavings = 0;
+        <div class="text-sm text-gray-400 mb-4">
+            <span id="time"></span> • <span id="reduction"></span>
+        </div>
 
-    async function runScrape() {
-        const url = document.getElementById('targetUrl').value.trim();
-        if (!url) return;
+        <pre id="output" class="bg-gray-900 p-4 rounded-lg overflow-auto text-sm whitespace-pre-wrap"></pre>
+    </div>
 
-        const loader = document.getElementById('loader');
-        const results = document.getElementById('results');
-        const progress = document.getElementById('progressBar');
-        const status = document.getElementById('loadingStatus');
+</div>
 
-        loader.classList.remove('hidden');
-        results.classList.add('hidden');
-        progress.style.width = '20%';
-        status.innerText = "Analyzing Target URL...";
+<script>
+const API = "https://ghost-scrape-production.up.railway.app";
 
-        const startTime = performance.now();
+async function scrape() {
+    const url = document.getElementById("urlInput").value.trim();
+    const status = document.getElementById("status");
+    const resultDiv = document.getElementById("result");
 
-        try {
-            const apiEndpoint = `${API}/scrape?url=${encodeURIComponent(url)}`;
-            const response = await fetch(apiEndpoint);
+    if (!url) return;
 
-            if (!response.ok) throw new Error("Request failed");
+    status.innerText = "⏳ Processing...";
+    resultDiv.classList.add("hidden");
 
-            const data = await response.json();
-            const endTime = performance.now();
+    try {
+        const res = await fetch(`${API}/scrape?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
 
-            // Populate
-            document.getElementById('pageTitle').innerText = data.title;
-            document.getElementById('output').innerText = data.markdown;
-
-            const reduction = ((1 - data.stats.distilled_chars / data.stats.raw_chars) * 100).toFixed(1);
-            document.getElementById('statSavings').innerText = reduction + "%";
-            document.getElementById('statTime').innerText = ((endTime - startTime) / 1000).toFixed(2) + 's';
-
-            document.getElementById('modeBadge').innerText =
-                url.includes('wikipedia') ? 'FAST_FETCH' : 'HYBRID_MODE';
-
-            const tokensSaved = (data.stats.raw_chars - data.stats.distilled_chars) / 4;
-            const moneySaved = (tokensSaved / 1000) * 0.03;
-            totalDollarSavings += moneySaved;
-            document.getElementById('totalSavings').innerText = `$${totalDollarSavings.toFixed(4)} saved`;
-
-            progress.style.width = '100%';
-
-            setTimeout(() => {
-                loader.classList.add('hidden');
-                results.classList.remove('hidden');
-            }, 400);
-
-        } catch (error) {
-            alert("Distillation failed. Check backend.");
-            loader.classList.add('hidden');
+        if (!data.success) {
+            throw new Error(data.error);
         }
-    }
 
-    function copyToClipboard() {
-        const text = document.getElementById('output').innerText;
-        navigator.clipboard.writeText(text);
+        document.getElementById("title").innerText = data.title;
+        document.getElementById("output").innerText = data.markdown;
+
+        const reduction = ((1 - data.stats.distilled_chars / data.stats.raw_chars) * 100).toFixed(1);
+
+        document.getElementById("time").innerText = `${data.time_ms} ms`;
+        document.getElementById("reduction").innerText = `${reduction}% smaller`;
+
+        status.innerText = "✅ Done";
+        resultDiv.classList.remove("hidden");
+
+    } catch (err) {
+        console.error(err);
+        status.innerText = "❌ " + err.message;
     }
+}
 </script>
 
 </body>

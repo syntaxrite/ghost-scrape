@@ -52,7 +52,7 @@ function distill(html, url) {
     };
 }
 
-// ⚡ FAST FETCH ONLY
+// ⚡ FETCH
 async function fetchPage(url) {
     const { data } = await axios.get(url, {
         timeout: 15000,
@@ -76,10 +76,8 @@ function isValidUrl(url) {
 
 // 🎯 SCRAPER
 async function scrape(url) {
-
     console.log("👉 Scraping:", url);
 
-    // CACHE
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.time < CACHE_TTL)) {
         console.log("⚡ Cache hit");
@@ -88,14 +86,11 @@ async function scrape(url) {
 
     let result;
 
-    // ⚡ Wikipedia fast path
     if (url.includes('wikipedia.org')) {
         const parsedUrl = new URL(url);
         const wikiPath = parsedUrl.pathname.split('/wiki/')[1];
 
-        if (!wikiPath) {
-            throw new Error('Invalid Wikipedia URL');
-        }
+        if (!wikiPath) throw new Error('Invalid Wikipedia URL');
 
         const title = encodeURIComponent(decodeURIComponent(wikiPath));
         const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/html/${title}`;
@@ -103,19 +98,13 @@ async function scrape(url) {
         const { data } = await axios.get(apiUrl);
         result = distill(data, url);
     } else {
-        try {
-            result = await fetchPage(url);
-        } catch (err) {
-            console.error("⚠️ Fetch failed:", err.message);
-            throw new Error("Failed to fetch page");
-        }
+        result = await fetchPage(url);
     }
 
     if (!result || !result.markdown) {
         throw new Error("No readable content found");
     }
 
-    // LIMIT CACHE SIZE
     if (cache.size > 1000) cache.clear();
 
     cache.set(url, {
@@ -126,7 +115,7 @@ async function scrape(url) {
     return result;
 }
 
-// 🌐 ROOT (so you stop worrying about “Cannot GET /”)
+// 🌐 ROOT
 app.get('/', (req, res) => {
     res.send("👻 GhostScrape API is alive");
 });
@@ -150,17 +139,15 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (e) {
-        console.error("❌ SCRAPE ERROR:");
-        console.error(e);
+        console.error("❌ SCRAPE ERROR:", e);
 
         res.status(500).json({
-            error: "Failed to scrape",
-            details: e.message || "Unknown error"
+            success: false,
+            error: e.message
         });
     }
 });
 
-// 🚀 START SERVER
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`🚀 GhostScrape running on ${PORT}`);
