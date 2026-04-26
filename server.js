@@ -69,7 +69,24 @@ async function scrapeSmart(url, maxTokens = 2000) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
         // Final "Wait for content" check
-        await page.waitForTimeout(2000); 
+        // --- REPLACE THIS ---
+// await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+
+// --- WITH THIS ---
+try {
+    // 1. Only wait for the main HTML structure (instant)
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    
+    // 2. Race: Wait for the main article text to appear OR wait max 5 seconds
+    // This stops the "Network Busy" loop entirely
+    await Promise.race([
+        page.waitForSelector('article', { timeout: 5000 }),
+        page.waitForSelector('main', { timeout: 5000 }),
+        page.waitForTimeout(5000) 
+    ]);
+} catch (e) {
+    console.log("Navigation timeout hit, but proceeding with captured HTML...");
+} 
 
         const html = await page.content();
         const doc = new JSDOM(html, { url });
