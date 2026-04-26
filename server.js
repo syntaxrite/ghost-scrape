@@ -21,7 +21,7 @@ app.use(rateLimit({
 const cache = new Map();
 const CACHE_TTL = 1000 * 60 * 30;
 
-// 🎭 USER AGENTS
+// 🎭 USER AGENTS (basic anti-bot)
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17 Safari/605.1.15',
@@ -36,7 +36,7 @@ function getHeaders() {
     };
 }
 
-// 🧹 CLEAN DOM (remove ads/junk)
+// 🧹 CLEAN DOM
 function cleanDom(document) {
     const selectors = [
         'script','style','noscript','iframe',
@@ -48,8 +48,6 @@ function cleanDom(document) {
     selectors.forEach(sel => {
         document.querySelectorAll(sel).forEach(el => el.remove());
     });
-
-    return document;
 }
 
 // 🖼️ SIMPLIFY MEDIA
@@ -59,26 +57,22 @@ function simplifyMedia(document) {
         img.replaceWith(`![image](${src})`);
     });
 
-    document.querySelectorAll('video').forEach(v => {
-        v.replaceWith(`[Video removed]`);
+    document.querySelectorAll('video').forEach(() => {
+        const txt = document.createTextNode('[Video removed]');
+        document.body.appendChild(txt);
     });
-
-    return document;
 }
 
-// 🧠 FORMAT OUTPUT
+// 🧠 FORMAT MARKDOWN
 function formatMarkdown(text) {
-
     text = text.replace(/\s+/g, ' ').trim();
 
     let sentences = text.split(/(?<=\.)\s+/);
-
     let result = [];
     let block = "";
 
     for (let s of sentences) {
 
-        // headings
         if (
             s.includes("Features of") ||
             s.includes("Working of") ||
@@ -94,7 +88,6 @@ function formatMarkdown(text) {
             continue;
         }
 
-        // bullet-like
         if (s.includes(":") && s.length < 120) {
             result.push(`- ${s.trim()}`);
             continue;
@@ -112,7 +105,6 @@ function formatMarkdown(text) {
 
     let final = result.join("\n\n");
 
-    // code block
     final = final.replace(/const .*?;/g, m => `\n\`\`\`js\n${m}\n\`\`\`\n`);
 
     return final.trim();
@@ -123,26 +115,23 @@ const turndown = new TurndownService();
 turndown.remove(['script','style','iframe','svg']);
 
 // 🎯 DISTILL
-
 function distill(html, url) {
 
-    // 🧱 Step 1: Create base DOM
     const dom = new JSDOM(html, { url });
     const originalDoc = dom.window.document;
 
     if (!originalDoc || !originalDoc.body) {
-        throw new Error("Invalid DOM created");
+        throw new Error("Invalid DOM");
     }
 
-    // 🧪 Step 2: Clone document for safe processing
-    const clonedDom = new JSDOM(originalDoc.documentElement.outerHTML, { url });
-    const doc = clonedDom.window.document;
+    // clone safely
+    const cloned = new JSDOM(originalDoc.documentElement.outerHTML, { url });
+    const doc = cloned.window.document;
 
-    // 🧹 Step 3: Clean safely
     cleanDom(doc);
     simplifyMedia(doc);
 
-    // 🔥 GFG SPECIAL CASE
+    // 🔥 GFG special
     if (url.includes('geeksforgeeks.org')) {
         const main = doc.querySelector('.text');
         if (main && main.textContent.length > 200) {
@@ -159,12 +148,12 @@ function distill(html, url) {
         }
     }
 
-    // 🧠 Step 4: Readability (on CLEAN clone)
+    // 🧠 Readability
     let article;
     try {
         article = new Readability(doc).parse();
-    } catch (err) {
-        console.error("Readability crash:", err.message);
+    } catch (e) {
+        console.error("Readability error:", e.message);
     }
 
     if (article && article.textContent && article.textContent.length > 300) {
@@ -181,7 +170,7 @@ function distill(html, url) {
         };
     }
 
-    // 💀 Fallback (guaranteed output)
+    // 💀 fallback
     let text = originalDoc.body.textContent
         .replace(/\.\s+/g, '.\n\n')
         .slice(0, 20000);
@@ -195,93 +184,18 @@ function distill(html, url) {
             distilled_chars: text.length
         }
     };
-
-
-
-    // 🧠 Readability (USE ORIGINAL DOC)
-    const article = new Readability(doc).parse();
-
-    if (article && article.textContent.length > 300) {
-        const md = turndown.turndown(article.content);
-
-        return {
-            title: article.title,
-            markdown: formatMarkdown(md),
-            mode: "readability",
-            stats: {
-                raw_chars: html.length,
-                distilled_chars: md.length
-            }
-        };
-    }
-
-    // 💀 fallback
-    let text = doc.body.textContent
-        .replace(/\.\s+/g, '.\n\n')
-        .slice(0, 20000);
-
-    return {
-        title: doc.title || "Untitled",
-        markdown: formatMarkdown(text),
-        mode: "fallback",
-        stats: {
-            raw_chars: html.length,
-            distilled_chars: text.length
-        }
-    };
-
-
-    // 🧠 Readability
-    const article = new Readability(document).parse();
-
-    if (article && article.textContent.length > 300) {
-        const md = turndown.turndown(article.content);
-        return {
-            title: article.title,
-            markdown: formatMarkdown(md),
-            mode: "readability",
-            stats: {
-                raw_chars: html.length,
-                distilled_chars: md.length
-            }
-        };
-    }
-
-    // 💀 fallback
-    let text = document.body.textContent
-        .replace(/\.\s+/g, '.\n\n')
-        .slice(0, 20000);
-
-    return {
-        title: document.title || "Untitled",
-        markdown: formatMarkdown(text),
-        mode: "fallback",
-        stats: {
-            raw_chars: html.length,
-            distilled_chars: text.length
-        }
-    };
 }
 
 // ⚡ FETCH
 async function fetchPage(url) {
-    try {
-        const { data } = await axios.get(url, {
-            timeout: 15000,
-            headers: getHeaders(),
-            decompress: true
-        });
-        return data;
-    } catch {
-        const { data } = await axios.get(url, {
-            timeout: 15000,
-            headers: getHeaders()
-        });
-        return data;
-    }
+    const { data } = await axios.get(url, {
+        timeout: 15000,
+        headers: getHeaders()
+    });
+    return data;
 }
 
-// 🎯 SCRAPER
+// 🎯 SCRAPE
 async function scrape(url) {
 
     const cached = cache.get(url);
@@ -323,6 +237,8 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (e) {
+        console.error("SCRAPE ERROR:", e.message);
+
         res.status(500).json({
             success: false,
             error: e.message
@@ -331,7 +247,7 @@ app.get('/scrape', async (req, res) => {
 });
 
 // 🚀 START
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`🚀 GhostScrape running on ${PORT}`);
 });
