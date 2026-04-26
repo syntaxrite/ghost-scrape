@@ -44,60 +44,45 @@ turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video',
 async function scrapeSmart(url, maxTokens = 2000) {
     const browser = await chromium.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] 
     });
-    
-    const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        viewport: { width: 1280, height: 720 }
-    });
-    
+    const context = await browser.newContext();
     const page = await context.newPage();
 
     try {
-        // --- BANDWIDTH OPTIMIZATION: Block the Trash ---
+        // 1. BLOCK THE TRASH (The most important speed fix)
         await page.route('**/*', (route) => {
             const type = route.request().resourceType();
+            // Block images, css, and fonts - you only need the HTML text!
             if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
                 return route.abort();
             }
             route.continue();
         });
 
-        // --- ACTIVE EXTRACTION: Stop waiting for "Network Idle" ---
-        try {
-            // Load only the essential HTML structure
-            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-            
-            // Race to find content. As soon as 'article' or 'main' exists, we grab it.
-            await Promise.race([
-                page.waitForSelector('article', { timeout: 6000 }),
-                page.waitForSelector('main', { timeout: 6000 }),
-                page.waitForTimeout(6000) 
-            ]);
-        } catch (e) {
-            console.log("Quick-load limit reached, processing partial capture...");
-        }
+        // 2. DOM-ONLY LOADING
+        // We use 'domcontentloaded' because it finishes in < 2 seconds
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        
+        // 3. TARGETED WAIT
+        // Wait specifically for the text content, then stop immediately
+        await page.waitForSelector('body', { timeout: 5000 });
 
         const html = await page.content();
         const doc = new JSDOM(html, { url });
-        
-        // Use Readability to extract the "Detail"
         const article = new Readability(doc.window.document).parse();
 
-        if (!article) throw new Error("Ghost Engine couldn't find the main story.");
+        if (!article) throw new Error("Ghost Engine couldn't find the main detail.");
 
         let markdown = turndown.turndown(article.content);
         
-        // Token Budgeting
-        const charLimit = maxTokens * 4; 
-        if (markdown.length > charLimit) {
-            markdown = markdown.substring(0, charLimit) + "\n\n... [Content Truncated for AI Context]";
+        // Truncate if too long for LLM context
+        if (markdown.length > maxTokens * 4) {
+            markdown = markdown.substring(0, maxTokens * 4) + "... [Truncated]";
         }
 
         return {
             title: article.title,
-            author: article.byline,
             markdown: markdown,
             stats: {
                 raw_chars: html.length,
