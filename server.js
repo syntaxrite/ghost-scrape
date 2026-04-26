@@ -1,82 +1,71 @@
 const express = require('express');
 const cors = require('cors');
-const { chromium } = require('playwright-extra');
+// Changed to firefox
+const { firefox } = require('playwright-extra'); 
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const { Readability } = require('@mozilla/readability');
 const { JSDOM } = require('jsdom');
 const TurndownService = require('turndown');
-const axios = require('axios');
+const axios = require('axios'); 
 require('dotenv').config();
 
-chromium.use(stealth);
+firefox.use(stealth);
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
-turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside', 'header']);
+turndown.remove(['script', 'style', 'noscript', 'iframe', 'svg', 'img', 'video', 'footer', 'nav', 'aside']);
 
-// Shared logic to clean HTML into Markdown
 function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
     if (!article) return null;
-
-    const markdown = turndown.turndown(article.content);
+    const md = turndown.turndown(article.content);
     return {
         title: article.title,
-        markdown: markdown,
+        markdown: md,
         stats: {
             raw_chars: html.length,
-            distilled_chars: markdown.length,
-            savings: Math.round((1 - (markdown.length / html.length)) * 100) + "%"
+            distilled_chars: md.length,
+            savings: Math.round((1 - (md.length / html.length)) * 100) + "%"
         }
     };
 }
 
 async function scrapeSmart(url) {
-    // 1. ULTRA-FAST PATH: Wikipedia & GitHub (Sub-second speed)
-    if (url.includes('wikipedia.org') || url.includes('github.com')) {
-        console.log("⚡ Instant Path Triggered");
-        try {
-            const response = await axios.get(url, { 
-                timeout: 10000,
-                headers: { 
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
-                }
-            });
-            return distill(response.data, url);
-        } catch (e) {
-            console.log("Fast path failed, falling back to browser...");
-        }
+    // 1. FAST PATH: Wikipedia (Solves the 20-second delay)
+    if (url.includes('wikipedia.org')) {
+        console.log("⚡ Fast Path: Axios with Browser Identity");
+        const { data: html } = await axios.get(url, { 
+            timeout: 10000,
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0' 
+            }
+        });
+        return distill(html, url);
     }
 
-    // 2. STEALTH BROWSER PATH: For ZDNet, TechCrunch, etc.
-    const browser = await chromium.launch({ 
+    // 2. FIREFOX STEALTH PATH
+    const browser = await firefox.launch({ 
         headless: true, 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'] 
+        args: ['--no-sandbox'] 
     });
     const page = await browser.newPage();
 
     try {
-        // Aggressive Resource Blocking (Speeds up loading by 80%)
         await page.route('**/*', (route) => {
-            const type = route.request().resourceType();
-            if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+            if (['image', 'media', 'font', 'stylesheet'].includes(route.request().resourceType())) {
                 return route.abort();
             }
             route.continue();
         });
 
-        // Use 'domcontentloaded' instead of 'networkidle' to avoid timeouts
+        // Use 'domcontentloaded' to avoid the 45s timeout seen in your logs
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
         
-        // Race: Stop as soon as we see content
-        await Promise.race([
-            page.waitForSelector('article', { timeout: 8000 }),
-            page.waitForSelector('p', { timeout: 8000 }),
-            new Promise(res => setTimeout(res, 8000)) 
-        ]);
+        // Wait for content or max 5 seconds
+        await page.waitForSelector('p', { timeout: 5000 }).catch(() => null);
 
         const html = await page.content();
         return distill(html, url);
@@ -85,20 +74,16 @@ async function scrapeSmart(url) {
     }
 }
 
-// Routes
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL is required" });
     try {
         const data = await scrapeSmart(url);
-        if (!data) throw new Error("Could not extract article content.");
         res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.get('/', (req, res) => res.send("🚀 Ghost-Scrape Hybrid Engine is LIVE"));
-
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log("🚀 Firefox Engine Live"));
