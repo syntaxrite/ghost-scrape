@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Ghost-Scrape | Distill HTML to Markdown</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-gray-200">
+    <div class="max-w-4xl mx-auto py-20 px-6">
+        <h1 class="text-4xl font-bold text-blue-500 mb-2">Ghost-Scrape</h1>
+        <p class="mb-8 text-gray-500">The distillation layer for AI Agents. Save 90% on tokens.</p>
+        
+        <div class="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-800">
+            <input id="targetUrl" type="text" placeholder="Paste URL..." class="flex-1 bg-transparent p-3 outline-none">
+            <button onclick="runScrape()" class="bg-blue-600 px-6 py-3 rounded-md font-bold">Distill</button>
+        </div>
+
+        <div id="loader" class="hidden mt-10 text-center animate-pulse text-blue-400">Engine is Distilling...</div>
+
+        <div id="results" class="hidden mt-10 grid grid-cols-2 gap-4">
+            <div class="p-4 bg-gray-900 rounded border border-gray-800">
+                <span id="savingsTag" class="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">0% Saved</span>
+                <pre id="output" class="mt-4 text-xs h-64 overflow-auto whitespace-pre-wrap"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function runScrape() {
+            const url = document.getElementById('targetUrl').value;
+            document.getElementById('loader').classList.remove('hidden');
+            try {
+                // Change this URL to your actual Render URL
+                const res = await fetch(`https://ghost-scrape.onrender.com/scrape?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                document.getElementById('output').innerText = data.markdown;
+                document.getElementById('savingsTag').innerText = data.stats.savings + " Tokens Saved";
+                document.getElementById('results').classList.remove('hidden');
+            } catch (e) { alert("Error: " + e.message); }
+            document.getElementById('loader').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
