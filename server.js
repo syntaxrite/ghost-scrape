@@ -123,12 +123,22 @@ const turndown = new TurndownService();
 turndown.remove(['script','style','iframe','svg']);
 
 // 🎯 DISTILL
+
 function distill(html, url) {
 
+    // 🧱 Step 1: Create base DOM
     const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
+    const originalDoc = dom.window.document;
 
-    // 🧹 CLEAN (but DO NOT replace doc)
+    if (!originalDoc || !originalDoc.body) {
+        throw new Error("Invalid DOM created");
+    }
+
+    // 🧪 Step 2: Clone document for safe processing
+    const clonedDom = new JSDOM(originalDoc.documentElement.outerHTML, { url });
+    const doc = clonedDom.window.document;
+
+    // 🧹 Step 3: Clean safely
     cleanDom(doc);
     simplifyMedia(doc);
 
@@ -148,6 +158,45 @@ function distill(html, url) {
             };
         }
     }
+
+    // 🧠 Step 4: Readability (on CLEAN clone)
+    let article;
+    try {
+        article = new Readability(doc).parse();
+    } catch (err) {
+        console.error("Readability crash:", err.message);
+    }
+
+    if (article && article.textContent && article.textContent.length > 300) {
+        const md = turndown.turndown(article.content);
+
+        return {
+            title: article.title,
+            markdown: formatMarkdown(md),
+            mode: "readability",
+            stats: {
+                raw_chars: html.length,
+                distilled_chars: md.length
+            }
+        };
+    }
+
+    // 💀 Fallback (guaranteed output)
+    let text = originalDoc.body.textContent
+        .replace(/\.\s+/g, '.\n\n')
+        .slice(0, 20000);
+
+    return {
+        title: originalDoc.title || "Untitled",
+        markdown: formatMarkdown(text),
+        mode: "fallback",
+        stats: {
+            raw_chars: html.length,
+            distilled_chars: text.length
+        }
+    };
+
+
 
     // 🧠 Readability (USE ORIGINAL DOC)
     const article = new Readability(doc).parse();
