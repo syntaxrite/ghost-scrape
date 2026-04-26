@@ -46,25 +46,36 @@ function distill(html, url) {
     const doc = new JSDOM(html, { url });
     const article = new Readability(doc.window.document).parse();
 
-    if (!article) {
+    // 🧠 If Readability works
+    if (article && article.textContent.length > 200) {
+        const md = turndown.turndown(article.content);
+
         return {
-            title: "Extraction Failed",
-            markdown: "Could not extract readable content.",
+            title: article.title,
+            markdown: md,
+            mode: "readability",
             stats: {
                 raw_chars: html.length,
-                distilled_chars: 0
+                distilled_chars: md.length
             }
         };
     }
 
-    const md = turndown.turndown(article.content);
+    // 💀 Fallback: extract body text manually
+    console.log("⚠️ Falling back to raw extraction");
+
+    const bodyText = doc.window.document.body.textContent
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 15000); // limit
 
     return {
-        title: article.title,
-        markdown: md,
+        title: doc.window.document.title || "Untitled",
+        markdown: bodyText,
+        mode: "raw",
         stats: {
             raw_chars: html.length,
-            distilled_chars: md.length
+            distilled_chars: bodyText.length
         }
     };
 }
