@@ -32,19 +32,17 @@ function getHeaders() {
     return {
         'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
         'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Connection': 'keep-alive'
+        'Accept-Language': 'en-US,en;q=0.9'
     };
 }
 
-// 🧹 REMOVE ADS / JUNK
+// 🧹 CLEAN DOM (remove ads/junk)
 function cleanDom(document) {
     const selectors = [
-        'script', 'style', 'noscript', 'iframe',
-        'header', 'footer', 'nav', 'aside',
-        '.ads', '.advertisement', '.promo',
-        '[class*="ad"]', '[id*="ad"]',
-        '.sidebar', '.popup', '.banner'
+        'script','style','noscript','iframe',
+        'header','footer','nav','aside',
+        '[class*="ad"]','[id*="ad"]',
+        '.sidebar','.popup','.banner'
     ];
 
     selectors.forEach(sel => {
@@ -58,37 +56,103 @@ function cleanDom(document) {
 function simplifyMedia(document) {
     document.querySelectorAll('img').forEach(img => {
         const src = img.src || '';
-        img.replaceWith(`[Image: ${src.split('/').pop() || 'image'}.jpg]`);
+        img.replaceWith(`![image](${src})`);
     });
 
-    document.querySelectorAll('video').forEach(video => {
-        video.replaceWith(`[Video content removed]`);
+    document.querySelectorAll('video').forEach(v => {
+        v.replaceWith(`[Video removed]`);
     });
 
     return document;
 }
 
+// 🧠 FORMAT OUTPUT
+function formatMarkdown(text) {
+
+    text = text.replace(/\s+/g, ' ').trim();
+
+    let sentences = text.split(/(?<=\.)\s+/);
+
+    let result = [];
+    let block = "";
+
+    for (let s of sentences) {
+
+        // headings
+        if (
+            s.includes("Features of") ||
+            s.includes("Working of") ||
+            s.includes("Components of") ||
+            s.includes("Use Cases") ||
+            s.includes("Hello, World")
+        ) {
+            if (block) {
+                result.push(block.trim());
+                block = "";
+            }
+            result.push(`\n## ${s.trim()}\n`);
+            continue;
+        }
+
+        // bullet-like
+        if (s.includes(":") && s.length < 120) {
+            result.push(`- ${s.trim()}`);
+            continue;
+        }
+
+        block += s + " ";
+
+        if (block.length > 300) {
+            result.push(block.trim());
+            block = "";
+        }
+    }
+
+    if (block) result.push(block.trim());
+
+    let final = result.join("\n\n");
+
+    // code block
+    final = final.replace(/const .*?;/g, m => `\n\`\`\`js\n${m}\n\`\`\`\n`);
+
+    return final.trim();
+}
+
 // 📄 MARKDOWN ENGINE
 const turndown = new TurndownService();
-turndown.remove(['script', 'style', 'iframe', 'svg']);
+turndown.remove(['script','style','iframe','svg']);
 
-// 🧠 DISTILL FUNCTION (SMART)
+// 🎯 DISTILL
 function distill(html, url) {
+
     const dom = new JSDOM(html, { url });
     let document = dom.window.document;
 
-    // 🧹 Clean junk first
     document = cleanDom(document);
-
-    // 🖼️ simplify media
     document = simplifyMedia(document);
 
-    // 🧠 Try Readability
+    // 🔥 GFG SPECIAL FIX
+    if (url.includes('geeksforgeeks.org')) {
+        const main = document.querySelector('.text');
+        if (main && main.textContent.length > 200) {
+            const md = turndown.turndown(main.innerHTML);
+            return {
+                title: document.title,
+                markdown: formatMarkdown(md),
+                mode: "gfg",
+                stats: {
+                    raw_chars: html.length,
+                    distilled_chars: md.length
+                }
+            };
+        }
+    }
+
+    // 🧠 Readability
     const article = new Readability(document).parse();
 
     if (article && article.textContent.length > 300) {
         const md = turndown.turndown(article.content);
-
         return {
             title: article.title,
             markdown: formatMarkdown(md),
@@ -100,39 +164,14 @@ function distill(html, url) {
         };
     }
 
-    function formatMarkdown(md) {
-    return md
-        // Add spacing after headings
-        .replace(/(#+ .+)/g, '\n$1\n')
-
-        // Fix bullet lists
-        .replace(/•/g, '\n- ')
-
-        // Add spacing after sentences
-        .replace(/([a-z])([A-Z])/g, '$1\n\n$2')
-
-        // Clean excessive spaces
-        .replace(/\s{2,}/g, ' ')
-
-        // Add spacing around code
-        .replace(/(const|let|var|function)/g, '\n\n$1')
-
-        .trim();
-}
-
-    // 💀 Fallback: grab main content manually
-    console.log("⚠️ Readability failed → fallback mode");
-
+    // 💀 fallback
     let text = document.body.textContent
-    .replace(/\.\s+/g, '.\n\n') // sentence spacing
-    .replace(/:\s+/g, ':\n')    // headings
-        .replace(/\s+/g, ' ')
-        .trim()
+        .replace(/\.\s+/g, '.\n\n')
         .slice(0, 20000);
 
     return {
         title: document.title || "Untitled",
-        markdown: text,
+        markdown: formatMarkdown(text),
         mode: "fallback",
         stats: {
             raw_chars: html.length,
@@ -150,8 +189,7 @@ async function fetchPage(url) {
             decompress: true
         });
         return data;
-    } catch (err) {
-        console.log("🔁 Retry...");
+    } catch {
         const { data } = await axios.get(url, {
             timeout: 15000,
             headers: getHeaders()
@@ -162,22 +200,13 @@ async function fetchPage(url) {
 
 // 🎯 SCRAPER
 async function scrape(url) {
-    console.log("👉 Scraping:", url);
 
     const cached = cache.get(url);
     if (cached && Date.now() - cached.time < CACHE_TTL) {
-        console.log("⚡ Cache hit");
         return { ...cached.data, cached: true };
     }
 
-    let html;
-
-    try {
-        html = await fetchPage(url);
-    } catch (err) {
-        throw new Error("Fetch failed (blocked or timeout)");
-    }
-
+    const html = await fetchPage(url);
     const result = distill(html, url);
 
     cache.set(url, {
@@ -188,14 +217,17 @@ async function scrape(url) {
     return result;
 }
 
-// 🌐 ROOT
+// 🌐 ROUTES
 app.get('/', (req, res) => {
-    res.send("👻 GhostScrape API is alive");
+    res.send("👻 GhostScrape API alive");
 });
 
-// 🌐 API
 app.get('/scrape', async (req, res) => {
     const { url } = req.query;
+
+    if (!url) {
+        return res.status(400).json({ success: false, error: "Missing URL" });
+    }
 
     try {
         const start = Date.now();
@@ -208,8 +240,6 @@ app.get('/scrape', async (req, res) => {
         });
 
     } catch (e) {
-        console.error("❌ ERROR:", e.message);
-
         res.status(500).json({
             success: false,
             error: e.message
@@ -220,5 +250,5 @@ app.get('/scrape', async (req, res) => {
 // 🚀 START
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`🚀 Running on ${PORT}`);
+    console.log(`🚀 GhostScrape running on ${PORT}`);
 });
