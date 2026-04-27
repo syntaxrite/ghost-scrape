@@ -1,59 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GhostScrape Test Tool</title>
+    <title>GhostScrape Quick Test</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; line-height: 1.6; }
+        input { width: 70%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        #output { background: #f4f4f4; border: 1px solid #ccc; padding: 15px; overflow-x: auto; white-space: pre-wrap; margin-top: 20px; }
+    </style>
 </head>
-<body style="background-color: white; color: black; font-family: sans-serif; padding: 20px;">
+<body>
 
-    <h1>GhostScrape Debugger</h1>
-    <p>Enter your details below to scrape a URL.</p>
-    <hr>
+    <h1>GhostScrape Debugger (No Auth)</h1>
+    <p>Test the scraping logic directly. No API Key required for this test.</p>
 
-    <div style="margin-bottom: 20px;">
-        <label><b>1. Your API Key:</b></label><br>
-        <input type="text" id="key" style="width: 400px;" placeholder="Paste key from Supabase here">
-    </div>
+    <input type="text" id="url" placeholder="https://example.com">
+    <button id="btn" onclick="runTest()">Scrape URL</button>
 
-    <div style="margin-bottom: 20px;">
-        <label><b>2. URL to Scrape:</b></label><br>
-        <input type="text" id="url" style="width: 400px;" placeholder="https://example.com">
-        <button id="btn" onclick="startScrape()">SCRAPE NOW</button>
-    </div>
-
-    <hr>
-    <h3>Results:</h3>
-    <pre id="output" style="background: #eee; padding: 10px; border: 1px solid #ccc; min-height: 200px; white-space: pre-wrap;">Waiting for input...</pre>
+    <div id="output">Results will appear here...</div>
 
     <script>
-        async function startScrape() {
-            const urlInput = document.getElementById('url').value;
-            const keyInput = document.getElementById('key').value;
+        async function runTest() {
+            const urlValue = document.getElementById('url').value;
             const out = document.getElementById('output');
             const btn = document.getElementById('btn');
 
-            if (!urlInput || !keyInput) {
-                alert("Please fill in both boxes.");
-                return;
-            }
+            if (!urlValue) return alert("Enter a URL");
 
-            out.innerText = "Connecting to ghost-scrape.tech/scrape...";
+            out.innerText = "Processing... (This can take 5-15 seconds if Stealth mode triggers)";
             btn.disabled = true;
 
             try {
-                const response = await fetch('/scrape?url=' + encodeURIComponent(urlInput), {
-                    method: 'GET',
-                    headers: { 'x-api-key': keyInput }
-                });
-                
+                // Pointing to your local or Vercel /scrape endpoint
+                const response = await fetch(`/scrape?url=${encodeURIComponent(urlValue)}`);
                 const data = await response.json();
-                out.innerText = JSON.stringify(data, null, 2);
+                
+                if (data.success) {
+                    out.innerHTML = `<strong>Mode:</strong> ${data.mode}<br><strong>Title:</strong> ${data.title}<hr>${data.markdown}`;
+                } else {
+                    out.innerText = "Error: " + JSON.stringify(data, null, 2);
+                }
             } catch (err) {
-                out.innerText = "Error connecting to server: " + err.message;
+                out.innerText = "Fatal Error: " + err.message;
             } finally {
                 btn.disabled = false;
             }
         }
     </script>
-
 </body>
 </html>
