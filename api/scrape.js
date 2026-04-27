@@ -1,3 +1,5 @@
+
+console.log("NEW VERSION DEPLOYED");
 const axios = require("axios");
 const { JSDOM } = require("jsdom");
 const { Readability } = require("@mozilla/readability");
