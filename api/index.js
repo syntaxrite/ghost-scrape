@@ -3,20 +3,8 @@ const { JSDOM } = require("jsdom");
 const { Readability } = require("@mozilla/readability");
 const TurndownService = require("turndown");
 const { gfm } = require("turndown-plugin-gfm");
-const { HttpProxyAgent } = require("http-proxy-agent");
 
-// ---------- PROXY SETUP (SAFE) ----------
-let agent = null;
-
-if (process.env.PROXY_URL) {
-    const proxyUrl = `http://${process.env.PROXY_USER}:${process.env.PROXY_PASS}@${process.env.PROXY_URL}`;
-    agent = new HttpProxyAgent(proxyUrl, {
-        keepAlive: true,
-        timeout: 10000,
-    });
-}
-
-// ---------- AXIOS INSTANCE ----------
+// ---------- AXIOS ----------
 const client = axios.create({
     timeout: 12000,
     maxContentLength: 5 * 1024 * 1024,
@@ -27,34 +15,34 @@ const client = axios.create({
     },
 });
 
-// ---------- TURNDOWN SETUP ----------
+// ---------- MARKDOWN ----------
 const turndownService = new TurndownService({
     headingStyle: "atx",
     codeBlockStyle: "fenced",
     bulletListMarker: "-",
-})
-    .use(gfm);
+}).use(gfm);
 
-// Remove junk elements
+// remove junk elements
 turndownService.addRule("remove-images", {
     filter: ["img", "picture"],
     replacement: () => "",
 });
 
+// keep link text only
 turndownService.addRule("remove-links", {
     filter: "a",
-    replacement: (content) => content, // keep text only
+    replacement: (content) => content,
 });
 
-// Clean excessive whitespace
-turndownService.addRule("clean-whitespace", {
-    filter: ["p"],
+// cleaner paragraphs
+turndownService.addRule("clean-paragraphs", {
+    filter: "p",
     replacement: (content) => `\n\n${content.trim()}\n\n`,
 });
 
-// ---------- CLEANING FUNCTION ----------
+// ---------- CLEAN DOM ----------
 function cleanDocument(doc) {
-    const selectors = [
+    const removeSelectors = [
         "script",
         "style",
         "iframe",
@@ -62,6 +50,7 @@ function cleanDocument(doc) {
         "nav",
         "header",
         "aside",
+        "svg",
         ".ads",
         ".advertisement",
         ".promo",
@@ -71,19 +60,18 @@ function cleanDocument(doc) {
         ".banner",
         ".cookie",
         ".modal",
-        "svg",
     ];
 
-    selectors.forEach((sel) => {
+    removeSelectors.forEach((sel) => {
         doc.querySelectorAll(sel).forEach((el) => el.remove());
     });
 
     return doc;
 }
 
-// ---------- MAIN HANDLER ----------
+// ---------- HANDLER ----------
 module.exports = async (req, res) => {
-    const { url } = req.query;
+    let { url } = req.query;
 
     if (!url) {
         return res.status(400).json({
@@ -92,21 +80,16 @@ module.exports = async (req, res) => {
         });
     }
 
+    // fix missing protocol
+    if (!/^https?:\/\//i.test(url)) {
+        url = "https://" + url;
+    }
+
     let dom;
 
     try {
-        // ---------- FETCH (WITH PROXY + FALLBACK) ----------
-        let response;
-
-        try {
-            response = await client.get(url, {
-                httpAgent: agent,
-                httpsAgent: agent,
-            });
-        } catch (proxyError) {
-            console.warn("Proxy failed, retrying without proxy...");
-            response = await client.get(url);
-        }
+        // ---------- FETCH ----------
+        const response = await client.get(url);
 
         // ---------- PARSE ----------
         dom = new JSDOM(response.data, { url });
@@ -119,13 +102,13 @@ module.exports = async (req, res) => {
         const article = reader.parse();
 
         if (!article || !article.content) {
-            throw new Error("Failed to extract readable content");
+            throw new Error("Could not extract article content");
         }
 
         // ---------- MARKDOWN ----------
         let markdown = turndownService.turndown(article.content);
 
-        // Extra cleanup
+        // extra cleanup
         markdown = markdown
             .replace(/\n{3,}/g, "\n\n")
             .replace(/[ \t]+/g, " ")
@@ -137,23 +120,22 @@ module.exports = async (req, res) => {
             .filter((w) => w.length > 0).length;
 
         // ---------- RESPONSE ----------
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             title: article.title || "Untitled",
             siteName: article.siteName || new URL(url).hostname,
             wordCount,
             markdown,
         });
-    } catch (error) {
-        console.error("SCRAPE ERROR:", error.message);
 
-        res.status(500).json({
+    } catch (error) {
+        console.error("SCRAPE ERROR:", error);
+
+        return res.status(500).json({
             success: false,
-            error: error.message,
+            error: error.message || "Unknown error",
         });
     } finally {
-        if (dom) {
-            dom.window.close();
-        }
+        if (dom) dom.window.close();
     }
 };
