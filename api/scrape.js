@@ -6,14 +6,14 @@ const {
   isHomepage,
   shouldRetry,
   getWordCount,
-} = require("./core");
+} = require("../lib/core");
 
 const {
   extractWikipedia,
   extractNews,
   extractBlog,
   extractGeneric,
-} = require("./extractors");
+} = require("../lib/extractors");
 
 const TurndownService = require("turndown");
 const { gfm } = require("turndown-plugin-gfm");
