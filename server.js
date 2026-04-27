@@ -6,9 +6,9 @@ const { Readability } = require("@mozilla/readability");
 const TurndownService = require("turndown");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
-const dns = require("dns").promises;
 const { chromium } = require("playwright-extra");
 const stealth = require("puppeteer-extra-plugin-stealth")();
+const { HttpProxyAgent } = require('http-proxy-agent');
 
 // Core Configuration
 require("dotenv").config();
@@ -16,7 +16,15 @@ chromium.use(stealth);
 
 const app = express();
 const cache = new Map();
-const CACHE_TTL = 1000 * 60 * 60; // 1 hour
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour cache
+
+// Proxy Setup from Env Vars
+const PROXY_URL = process.env.PROXY_URL; // http://31.59.20.176:6754
+const PROXY_USER = process.env.PROXY_USER; // etbhwesx
+const PROXY_PASS = process.env.PROXY_PASS; // 5r7000jhftl8
+
+// Formatted for Axios/Fast Mode
+const FULL_PROXY = `http://${PROXY_USER}:${PROXY_PASS}@${PROXY_URL?.replace('http://', '')}`;
 
 const turndown = new TurndownService({ 
     headingStyle: "atx", 
@@ -27,132 +35,92 @@ const turndown = new TurndownService({
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: "*" }));
-app.use(rateLimit({ windowMs: 60 * 1000, max: 60 })); // 60 requests per minute
+app.use(rateLimit({ windowMs: 60 * 1000, max: 60 }));
 
-/* --- SSRF PROTECTION: BLOCKING PRIVATE IPS --- */
-async function validateUrl(input) {
-    try {
-        const parsed = new URL(input);
-        const hostname = parsed.hostname.toLowerCase();
-        
-        if (["localhost", "127.0.0.1", "::1"].includes(hostname)) {
-            throw new Error("Internal access forbidden");
-        }
-
-        const { address } = await dns.lookup(hostname);
-        const parts = address.split('.').map(Number);
-        
-        const isPrivate = 
-            address.startsWith("10.") || 
-            address.startsWith("192.168.") ||
-            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-            address.startsWith("169.254.");
-
-        if (isPrivate) throw new Error("Security Block: Private network detected");
-        
-        return parsed.toString();
-    } catch (e) {
-        throw new Error(e.message || "Invalid URL");
-    }
-}
-
-/* --- FAST FETCH: LIGHTWEIGHT AXIOS --- */
+/**
+ * Fast Mode: Axios with Proxy
+ * Good for Wikipedia, Docs, etc.
+ */
 async function fetchFast(url) {
-    const res = await axios.get(url, {
+    const agent = new HttpProxyAgent(FULL_PROXY);
+    const response = await axios.get(url, { 
+        httpAgent: agent,
+        httpsAgent: agent,
+        timeout: 8000,
         headers: { 
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Referer": "https://www.google.com/"
-        },
-        timeout: 8000
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36" 
+        }
     });
-    return res.data;
+    return response.data;
 }
 
-/* --- ULTRA-STEALTH FETCH: PLAYWRIGHT WITH CLOAKING --- */
+/**
+ * Stealth Mode: Playwright with Proxy
+ * Mandatory for Reddit and Quora
+ */
 async function fetchStealth(url) {
-    console.log("🕵️ Launching Ghost-Mode Browser...");
     const browser = await chromium.launch({
         headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--single-process' // Saves RAM on Railway
-        ]
+        proxy: {
+            server: PROXY_URL,
+            username: PROXY_USER,
+            password: PROXY_PASS
+        }
     });
-
+    
     try {
         const context = await browser.newContext({
-            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             viewport: { width: 1280, height: 800 },
-            extraHTTPHeaders: { 'Referer': 'https://www.google.com/' }
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         });
-
         const page = await context.newPage();
         
-        // 🔥 PERFORMANCE: Block images, CSS, and fonts to save memory/speed
-        await page.route('**/*.{png,jpg,jpeg,gif,svg,webp,css,woff,woff2}', (route) => route.abort());
-
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-
-        // 🖱️ HUMAN INTERACTION: Jitter scroll to trigger lazy loading
-        for (let i = 0; i < 3; i++) {
-            await page.evaluate(() => window.scrollBy(0, window.innerHeight / 2));
-            await page.waitForTimeout(800); 
-        }
-
+        // Reddit/Quora need time to load JS
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+        await page.waitForTimeout(2000); 
+        
         const content = await page.content();
+        await browser.close();
         return content;
-    } finally {
-        // ALWAYS close the browser to prevent memory leaks/Status 137
-        if (browser) await browser.close();
+    } catch (err) {
+        await browser.close();
+        throw err;
     }
 }
 
-/* --- DISTILL ENGINE: ARTICLE CLEANING --- */
+/**
+ * Content Distiller
+ */
 function distill(html, url) {
     const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
-
-    // Remove junk before parsing
-    const junk = doc.querySelectorAll('script, style, iframe, noscript, ad, ins');
-    junk.forEach(el => el.remove());
-
-    const reader = new Readability(doc, { charThreshold: 400 });
+    const reader = new Readability(dom.window.document);
     const article = reader.parse();
 
-    let md, title;
-    if (!article || !article.content) {
-        title = doc.title || "No Title Found";
-        const bodyFallback = doc.querySelector('article') || doc.querySelector('main') || doc.body;
-        md = turndown.turndown(bodyFallback.innerHTML || "No content extracted.");
-    } else {
-        title = article.title;
-        md = turndown.turndown(article.content);
-    }
+    if (!article) throw new Error("Content could not be parsed. Site might be blocking the scraper.");
 
     return {
-        title,
-        markdown: md,
+        title: article.title,
+        content: article.textContent,
+        markdown: turndown.turndown(article.content),
+        excerpt: article.excerpt,
         stats: {
             raw_chars: html.length,
-            distilled_chars: md.length
+            distilled_chars: article.textContent.length
         }
     };
 }
 
-/* --- THE SCRAPE ROUTE --- */
+/**
+ * Main Scrape Endpoint
+ */
 app.get("/scrape", async (req, res) => {
-    let { url } = req.query;
-    if (!url) return res.status(400).json({ success: false, error: "URL is required" });
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: "URL is required" });
 
     try {
-        const safeUrl = await validateUrl(url);
-
         // Cache Check
-        if (cache.has(safeUrl)) {
-            const cached = cache.get(safeUrl);
+        if (cache.has(url)) {
+            const cached = cache.get(url);
             if (Date.now() - cached.time < CACHE_TTL) return res.json(cached.data);
         }
 
@@ -160,19 +128,16 @@ app.get("/scrape", async (req, res) => {
         let html, mode = "fast";
 
         try {
-            html = await fetchFast(safeUrl);
+            // Try Fast mode first
+            html = await fetchFast(url);
         } catch (e) {
-            // Pivot to Stealth on blocks or timeouts
-            const status = e.response?.status;
-            if (status === 403 || status === 401 || e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT') {
-                html = await fetchStealth(safeUrl);
-                mode = "stealth";
-            } else {
-                throw e;
-            }
+            console.log(`Fast mode blocked for ${url}. Switching to Proxy Stealth...`);
+            // Switch to Playwright + Proxy if Fast mode fails (common for Reddit/Quora)
+            html = await fetchStealth(url);
+            mode = "stealth (proxy)";
         }
 
-        const result = distill(html, safeUrl);
+        const result = distill(html, url);
         const finalResponse = {
             success: true,
             mode,
@@ -180,21 +145,17 @@ app.get("/scrape", async (req, res) => {
             ...result
         };
 
-        cache.set(safeUrl, { data: finalResponse, time: Date.now() });
+        cache.set(url, { data: finalResponse, time: Date.now() });
         res.json(finalResponse);
 
     } catch (err) {
-        console.error("Critical Failure:", err.message);
+        console.error("Scrape Error:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`
-    👻 GhostScrape Engine Active
-    🚀 Port: ${PORT}
-    🛡️ Stealth: Enabled
-    🔒 SSRF Protection: Active
-    `);
+    console.log(`✅ Scraper running on port ${PORT}`);
+    console.log(`🚀 Proxy active: ${PROXY_URL}`);
 });
