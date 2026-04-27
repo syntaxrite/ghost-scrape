@@ -1,146 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost Scrape | Clean Markdown Engine</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #050505; color: #fff; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .glass-card { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); }
-        .glow-input:focus { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.1); }
-        .shimmer {
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-    /* Standard property for compatibility */
-    background-clip: text; 
-    /* Vendor prefix for Chrome, Safari, and Edge */
-    -webkit-background-clip: text; 
-    -webkit-text-fill-color: transparent;
-    color: transparent; /* Fallback for older browsers */
-}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Scrape</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+
+<style>
+body { font-family: 'Inter', sans-serif; background: #050505; color: white; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.glass { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); }
+</style>
 </head>
+
 <body class="min-h-screen flex flex-col">
 
-    <nav class="flex justify-between items-center px-8 py-6 max-w-7xl mx-auto w-full">
-        <div class="text-xl font-extrabold tracking-tighter uppercase">Ghost<span class="text-blue-500">Scrape</span></div>
-        <div class="hidden md:flex gap-8 text-sm font-medium text-gray-400">
-            <a href="#" class="hover:text-white transition">Documentation</a>
-            <a href="#" class="hover:text-white transition">Pricing</a>
-            <a href="#" class="hover:text-white transition">API Status</a>
-        </div>
-    </nav>
+<!-- NAV -->
+<nav class="flex justify-between px-8 py-6 max-w-6xl mx-auto w-full">
+  <div class="font-bold text-xl">Ghost<span class="text-blue-500">Scrape</span></div>
+</nav>
 
-    <main class="flex-1 flex flex-col items-center justify-center px-4 -mt-20">
-        
-        <div class="w-full max-w-3xl text-center mb-12">
-            <h1 class="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight">
-                Scrape <span class="shimmer">Anything</span>.
-            </h1>
-            <p class="text-gray-500 text-lg md:text-xl">The fastest way to get clean Markdown for your AI workflows.</p>
-        </div>
+<!-- HERO -->
+<main class="flex-1 flex flex-col items-center justify-center px-4">
 
-        <div class="w-full max-w-2xl space-y-4">
-            
-            <div class="flex justify-center">
-                <div class="relative w-full max-w-xs">
-                    <input type="text" id="apiKey" 
-                        class="w-full bg-transparent border border-white/10 rounded-full px-4 py-2 text-xs text-center outline-none transition glow-input text-blue-400" 
-                        placeholder="ENTER YOUR API KEY (FREE OR PRO)">
-                </div>
-            </div>
+<h1 class="text-5xl font-extrabold mb-4 text-center">
+  Clean Any Article → Markdown
+</h1>
 
-            <div class="glass-card p-2 rounded-2xl flex items-center shadow-2xl">
-                <input type="text" id="urlInput" 
-                    class="bg-transparent flex-1 p-4 outline-none text-white text-lg placeholder-gray-600"
-                    placeholder="Paste blog, wiki, or news URL...">
-                
-                <button onclick="handleAction()" id="actionBtn"
-                    class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold transition-all transform active:scale-95 flex items-center gap-2">
-                    Clean
-                </button>
-            </div>
-            
-            <p class="text-center text-gray-600 text-xs uppercase tracking-widest mt-4">
-                Press Enter to Start
-            </p>
-        </div>
+<p class="text-gray-500 mb-10 text-center">
+  Blogs · News · Wikipedia · AI-ready output
+</p>
 
-        <div id="resultsArea" class="w-full max-w-5xl mt-20 hidden">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass-card p-6 rounded-xl space-y-4 h-fit">
-                    <h4 class="text-xs font-bold text-gray-500 uppercase">Metadata</h4>
-                    <div>
-                        <p class="text-xs text-gray-400">Title</p>
-                        <p id="resTitle" class="text-sm font-semibold truncate">---</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-400">Word Count</p>
-                        <p id="resWords" class="text-sm font-semibold">0</p>
-                    </div>
-                    <button onclick="copyMd()" class="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-xs hover:bg-white/10 transition">
-                        Copy Markdown
-                    </button>
-                </div>
+<!-- INPUT -->
+<div class="glass rounded-xl p-2 flex w-full max-w-2xl">
+  <input id="urlInput"
+    placeholder="Paste article URL..."
+    class="flex-1 bg-transparent p-4 outline-none text-lg">
+  
+  <button id="btn" onclick="scrape()"
+    class="bg-blue-600 px-6 rounded-lg font-semibold hover:bg-blue-500">
+    Clean
+  </button>
+</div>
 
-                <div class="md:col-span-2 glass-card p-6 rounded-xl">
-                    <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                        <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Clean Markdown Output</span>
-                        <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">AI READY</span>
-                    </div>
-                    <pre id="mdOutput" class="mono text-sm text-gray-300 h-96 overflow-y-auto whitespace-pre-wrap leading-relaxed">
-                    </pre>
-                </div>
-            </div>
-        </div>
-    </main>
+<!-- ERROR -->
+<div id="errorBox" class="hidden mt-6 text-red-400 text-sm"></div>
 
-    <footer class="p-8 text-center text-gray-600 text-xs">
-        &copy; 2026 GHOST SCRAPE TECH. ALL RIGHTS RESERVED.
-    </footer>
+<!-- RESULTS -->
+<div id="result" class="hidden w-full max-w-6xl mt-16 grid md:grid-cols-2 gap-6">
 
-    <script>
-        async function handleAction() {
-            const url = document.getElementById('urlInput').value;
-            const btn = document.getElementById('actionBtn');
-            const results = document.getElementById('resultsArea');
-            const output = document.getElementById('mdOutput');
+  <!-- META -->
+  <div class="glass p-6 rounded-xl space-y-3">
+    <h3 class="text-xs text-gray-400 uppercase">Metadata</h3>
 
-            if (!url) return alert("Please enter a URL first.");
+    <div>
+      <p class="text-xs text-gray-500">Title</p>
+      <p id="title" class="font-semibold"></p>
+    </div>
 
-            // UI Loading State
-            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
-            btn.disabled = true;
+    <div>
+      <p class="text-xs text-gray-500">Words</p>
+      <p id="words"></p>
+    </div>
 
-            try {
-                // Testing the endpoint
-                const response = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
-                const data = await response.json();
+    <div>
+      <p class="text-xs text-gray-500">Source</p>
+      <p id="source"></p>
+    </div>
 
-                if (data.success) {
-                    results.classList.remove('hidden');
-                    output.innerText = data.markdown;
-                    document.getElementById('resTitle').innerText = data.title;
-                    document.getElementById('resWords').innerText = data.wordCount;
-                    results.scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (err) {
-                alert("Server error. Check your Vercel deployment.");
-            } finally {
-                btn.innerHTML = "Clean";
-                btn.disabled = false;
-            }
-        }
+    <button onclick="copyMd()" class="mt-4 w-full py-2 bg-white/10 rounded">
+      Copy Markdown
+    </button>
 
-        function copyMd() {
-            const text = document.getElementById('mdOutput').innerText;
-            navigator.clipboard.writeText(text);
-            alert("Markdown copied!");
-        }
-    </script>
+    <button onclick="downloadMd()" class="w-full py-2 bg-white/10 rounded">
+      Download .md
+    </button>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="glass p-6 rounded-xl">
+    <div class="flex justify-between mb-2">
+      <span class="text-xs text-gray-400">Markdown</span>
+      <button onclick="toggleView()" class="text-xs text-blue-400">Toggle View</button>
+    </div>
+
+    <pre id="output" class="mono text-sm h-96 overflow-auto whitespace-pre-wrap"></pre>
+
+    <div id="preview" class="hidden prose prose-invert max-w-none h-96 overflow-auto"></div>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="text-center text-xs text-gray-600 p-6">
+  Ghost Scrape © 2026
+</footer>
+
+<script>
+let currentMarkdown = "";
+let previewMode = false;
+
+async function scrape() {
+  const url = document.getElementById("urlInput").value.trim();
+  const btn = document.getElementById("btn");
+  const errorBox = document.getElementById("errorBox");
+
+  if (!url) {
+    errorBox.innerText = "Enter a URL";
+    errorBox.classList.remove("hidden");
+    return;
+  }
+
+  errorBox.classList.add("hidden");
+
+  btn.innerText = "Loading...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      errorBox.innerText = data.error;
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    currentMarkdown = data.markdown;
+
+    document.getElementById("title").innerText = data.title;
+    document.getElementById("words").innerText = data.wordCount;
+    document.getElementById("source").innerText = data.source;
+
+    document.getElementById("output").innerText = currentMarkdown;
+    document.getElementById("preview").innerHTML = markdownToHtml(currentMarkdown);
+
+    document.getElementById("result").classList.remove("hidden");
+
+  } catch (err) {
+    errorBox.innerText = "Server error. Check deployment.";
+    errorBox.classList.remove("hidden");
+  }
+
+  btn.innerText = "Clean";
+  btn.disabled = false;
+}
+
+function copyMd() {
+  navigator.clipboard.writeText(currentMarkdown);
+  alert("Copied!");
+}
+
+function downloadMd() {
+  const blob = new Blob([currentMarkdown], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "article.md";
+  a.click();
+}
+
+function toggleView() {
+  previewMode = !previewMode;
+
+  document.getElementById("output").classList.toggle("hidden", previewMode);
+  document.getElementById("preview").classList.toggle("hidden", !previewMode);
+}
+
+// basic markdown → html (lightweight)
+function markdownToHtml(md) {
+  return md
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+    .replace(/\n/g, '<br>');
+}
+
+// ENTER key support
+document.getElementById("urlInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") scrape();
+});
+</script>
+
 </body>
 </html>
