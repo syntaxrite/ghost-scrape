@@ -15,7 +15,7 @@ const http = axios.create({
   headers: {
     "User-Agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/123 Safari/537.36",
-    "Accept":
+    Accept:
       "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Cache-Control": "no-cache",
@@ -50,19 +50,28 @@ function domainOf(url) {
   return new URL(url).hostname.replace(/^www\./, "");
 }
 
-function isMedium(domain) {
-  return domain === "medium.com" || domain.endsWith(".medium.com");
+function isWikipedia(domain) {
+  return domain === "wikipedia.org" || domain.endsWith(".wikipedia.org");
 }
 
 function isBBC(domain) {
   return domain === "bbc.com" || domain.endsWith(".bbc.com");
 }
 
-function isWikipedia(domain) {
-  return domain === "wikipedia.org" || domain.endsWith(".wikipedia.org");
+function isMedium(domain) {
+  return domain === "medium.com" || domain.endsWith(".medium.com");
 }
 
-function cleanDocument(doc) {
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function cleanCommon(doc) {
   const selectors = [
     "script",
     "style",
@@ -94,7 +103,70 @@ function cleanDocument(doc) {
   return doc;
 }
 
-function extractMedium(doc) {
+function cleanWikipedia(doc) {
+  const content = doc.querySelector("#mw-content-text .mw-parser-output");
+  if (!content) return null;
+
+  const clone = content.cloneNode(true);
+  clone
+    .querySelectorAll(
+      ".reference, sup.reference, .mw-editsection, .hatnote, .toc, .navbox, .vertical-navbox, .ambox, .sidebar, .infobox, script, style, iframe, svg"
+    )
+    .forEach((el) => el.remove());
+
+  const title =
+    doc.querySelector("#firstHeading")?.textContent?.trim() ||
+    doc.title?.replace(/\s*-\s*Wikipedia$/, "").trim() ||
+    "Untitled";
+
+  return {
+    title,
+    content: clone.innerHTML,
+    textContent: clone.textContent || "",
+  };
+}
+
+function cleanBBC(doc) {
+  const title =
+    doc.querySelector("h1")?.textContent?.trim() ||
+    doc.title?.split(" - ")[0]?.trim() ||
+    "Untitled";
+
+  const blocks = [...doc.querySelectorAll('[data-component="text-block"]')];
+  if (blocks.length > 0) {
+    const html = blocks
+      .map((block) => {
+        const text = (block.textContent || "").trim();
+        return text ? `<p>${escapeHtml(text)}</p>` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    if (html) {
+      return {
+        title,
+        content: html,
+        textContent: blocks.map((b) => b.textContent || "").join(" "),
+      };
+    }
+  }
+
+  const article = doc.querySelector("article, main");
+  if (!article) return null;
+
+  const clone = article.cloneNode(true);
+  clone
+    .querySelectorAll("script, style, iframe, figure, aside, form, button, svg, noscript")
+    .forEach((el) => el.remove());
+
+  return {
+    title,
+    content: clone.innerHTML,
+    textContent: clone.textContent || "",
+  };
+}
+
+function cleanMedium(doc) {
   const title =
     doc.querySelector("article h1")?.textContent?.trim() ||
     doc.querySelector("h1")?.textContent?.trim() ||
@@ -105,68 +177,22 @@ function extractMedium(doc) {
   if (!article) return null;
 
   const clone = article.cloneNode(true);
-
-  clone.querySelectorAll("script,style,svg,button,aside,form,iframe,figure").forEach((el) => el.remove());
-
-  return { title, content: clone.innerHTML };
-}
-
-function extractBBC(doc) {
-  const title =
-    doc.querySelector("h1")?.textContent?.trim() ||
-    doc.title?.split(" - ")[0]?.trim() ||
-    "Untitled";
-
-  const article = doc.querySelector("article") || doc.querySelector("main");
-  if (!article) return null;
-
-  const clone = article.cloneNode(true);
-
-  clone.querySelectorAll(
-    '[data-component="text-block"] + *, script,style,svg,button,aside,form,iframe,figure'
-  ).forEach((el) => el.remove());
-
-  const textBlocks = [...clone.querySelectorAll('[data-component="text-block"]')];
-  if (textBlocks.length > 0) {
-    const html = textBlocks
-      .map((node) => {
-        const p = node.querySelector("p");
-        const text = (p?.textContent || node.textContent || "").trim();
-        return text ? `<p>${text}</p>` : "";
-      })
-      .filter(Boolean)
-      .join("\n");
-
-    return { title, content: html || clone.innerHTML };
-  }
-
-  return { title, content: clone.innerHTML };
-}
-
-function extractWikipedia(doc) {
-  const title =
-    doc.querySelector("#firstHeading")?.textContent?.trim() ||
-    doc.title?.replace(/\s*-\s*Wikipedia$/, "")?.trim() ||
-    "Untitled";
-
-  const content = doc.querySelector("#mw-content-text .mw-parser-output");
-  if (!content) return null;
-
-  const clone = content.cloneNode(true);
-
   clone
-    .querySelectorAll(
-      ".mw-editsection, .reference, sup.reference, .mw-jump-link, .toc, .navbox, .hatnote, .infobox, script, style, iframe, svg"
-    )
+    .querySelectorAll("script, style, iframe, figure, aside, form, button, svg, noscript")
     .forEach((el) => el.remove());
 
-  return { title, content: clone.innerHTML };
+  return {
+    title,
+    content: clone.innerHTML,
+    textContent: clone.textContent || "",
+  };
 }
 
-function extractGeneric(doc) {
+function cleanGeneric(doc) {
   const reader = new Readability(doc);
   const article = reader.parse();
   if (!article || !article.content) return null;
+
   return {
     title: article.title || doc.title || "Untitled",
     content: article.content,
@@ -179,7 +205,9 @@ async function fetchWithBrowserless(url) {
     throw new Error("BROWSERLESS_TOKEN is missing");
   }
 
-  const endpoint = `${BROWSERLESS_CONTENT_URL}?token=${encodeURIComponent(BROWSERLESS_TOKEN)}`;
+  const endpoint = `${BROWSERLESS_CONTENT_URL}?token=${encodeURIComponent(
+    BROWSERLESS_TOKEN
+  )}`;
 
   const response = await axios.post(
     endpoint,
@@ -208,12 +236,10 @@ async function fetchHtml(url, preferBrowserless = false) {
     return { html: response.data, source: "axios" };
   } catch (err) {
     const status = err?.response?.status;
-
     if (status === 403 || status === 429 || status === 503) {
       const html = await fetchWithBrowserless(url);
       return { html, source: "browserless" };
     }
-
     throw err;
   }
 }
@@ -229,24 +255,24 @@ module.exports = async (req, res) => {
     url = normalizeUrl(url);
     const domain = domainOf(url);
 
-    const useBrowserlessFirst = mode === "deep" || isMedium(domain);
-    const { html, source } = await fetchHtml(url, useBrowserlessFirst);
+    const preferBrowserless = mode === "deep" || isMedium(domain);
+    const { html, source } = await fetchHtml(url, preferBrowserless);
 
     const dom = new JSDOM(html, { url });
-    const doc = cleanDocument(dom.window.document);
+    const doc = cleanCommon(dom.window.document);
 
     let article = null;
 
     if (isWikipedia(domain)) {
-      article = extractWikipedia(doc);
+      article = cleanWikipedia(doc);
     } else if (isBBC(domain)) {
-      article = extractBBC(doc);
+      article = cleanBBC(doc);
     } else if (isMedium(domain)) {
-      article = extractMedium(doc);
+      article = cleanMedium(doc);
     }
 
     if (!article) {
-      article = extractGeneric(doc);
+      article = cleanGeneric(doc);
     }
 
     if (!article || !article.content) {
