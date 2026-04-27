@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostScrape | Premium Content Distiller</title>
+    <title>GhostScrape | v5967</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap');
         
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #05070a; color: #e2e8f0; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Smooth subtle glow for the "Ghost" feel */
         .glass-card {
             background: rgba(17, 24, 39, 0.7);
             backdrop-filter: blur(12px);
@@ -23,39 +22,36 @@
             border-color: rgba(59, 130, 246, 0.5);
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
     </style>
 </head>
 
-<body class="bg-[#05070a] text-slate-200 min-h-screen">
+<body class="min-h-screen p-4 md:p-8">
 
-<div class="max-w-5xl mx-auto py-16 px-6">
+<div class="max-w-5xl mx-auto py-12">
     
     <header class="text-center mb-12">
         <div class="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest text-blue-400 uppercase bg-blue-400/10 rounded-full">
-            v2.0 Intelligence
+            v5967 Active
         </div>
         <h1 class="text-5xl font-extrabold mb-3 tracking-tight text-white">
             Ghost<span class="text-blue-500">Scrape</span>
         </h1>
         <p class="text-slate-400 text-lg max-w-lg mx-auto">
-            Transform cluttered URLs into clean, structured Markdown in milliseconds.
+            Clean, structured Markdown from Reddit, Quora, and more.
         </p>
     </header>
 
     <main class="glass-card rounded-2xl p-2 mb-8 shadow-2xl">
         <div class="flex flex-col md:flex-row gap-2">
-            <input id="urlInput" type="text"
-                autofocus
-                placeholder="https://example.com/article..."
+            <input id="urlInput" type="text" autofocus
+                placeholder="https://www.reddit.com/r/..."
                 class="flex-1 px-5 py-4 bg-black/40 border border-slate-700 rounded-xl outline-none input-glow transition-all text-slate-100">
 
-            <button onclick="scrape()"
+            <button onclick="scrape()" id="scrapeBtn"
                 class="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-xl font-bold transition-all transform active:scale-95 flex items-center justify-center gap-2">
-                <span>Distill Reality</span>
+                <span>Distill</span>
                 <span class="opacity-70 text-sm">→</span>
             </button>
         </div>
@@ -66,111 +62,78 @@
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 ml-1">Quick Starts</h3>
             <div class="flex gap-2 flex-wrap">
                 <button onclick="setUrl('https://en.wikipedia.org/wiki/Artificial_intelligence')" class="text-xs bg-slate-800/50 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg transition">Wikipedia AI</button>
-                <button onclick="setUrl('https://www.geeksforgeeks.org/data-structures/')" class="text-xs bg-slate-800/50 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg transition">GFG Data</button>
-                <button onclick="setUrl('https://developer.mozilla.org/en-US/docs/Web/JavaScript')" class="text-xs bg-slate-800/50 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg transition">MDN Specs</button>
+                <button onclick="setUrl('https://www.reddit.com/r/webdev/')" class="text-xs bg-slate-800/50 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg transition">Reddit Dev</button>
             </div>
         </div>
         <div>
-            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 ml-1">Recent Sessions</h3>
-            <div id="history" class="flex flex-wrap gap-2">
-                </div>
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 ml-1">Recent</h3>
+            <div id="history" class="flex flex-wrap gap-2"></div>
         </div>
     </div>
 
     <div id="loader" class="hidden mb-6 flex items-center justify-center gap-3 py-8 glass-card rounded-xl">
         <div class="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-        <span class="text-blue-400 font-medium animate-pulse">Extracting essence...</span>
+        <span class="text-blue-400 font-medium animate-pulse">Ghosting through filters...</span>
     </div>
 
-    <div id="result" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div id="result" class="hidden">
         <div class="glass-card rounded-2xl overflow-hidden shadow-2xl">
-            
             <div class="border-b border-white/10 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 id="title" class="text-2xl font-bold text-white mb-2"></h2>
                     <div class="flex items-center gap-3">
-                        <span class="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20 uppercase">Success</span>
+                        <span id="modeTag" class="bg-blue-500/10 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/20 uppercase">FAST</span>
                         <span id="time" class="text-sm text-slate-500 mono"></span>
-                        <span id="reduction" class="text-sm text-blue-400 font-semibold mono"></span>
                     </div>
                 </div>
-                
                 <button id="copyBtn" onclick="copyOutput()"
                     class="bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2 rounded-lg transition flex items-center gap-2 text-sm font-medium">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     Copy Markdown
                 </button>
             </div>
-
             <pre id="output" class="p-6 text-sm text-slate-300 leading-relaxed overflow-auto max-h-[600px] mono bg-black/20 whitespace-pre-wrap"></pre>
         </div>
     </div>
-
 </div>
 
 <script>
-const API = "https://ghost-scrape-production.up.railway.app";
+// UPDATED TO YOUR CUSTOM DOMAIN
+const API = "https://api.ghost-scrape.tech";
 
 function setUrl(url) {
-    const input = document.getElementById("urlInput");
-    input.value = url;
-    input.focus();
-}
-
-function saveHistory(url) {
-    let history = JSON.parse(localStorage.getItem("ghost_history") || "[]");
-    history = [url, ...history.filter(u => u !== url)].slice(0, 4);
-    localStorage.setItem("ghost_history", JSON.stringify(history));
-    renderHistory();
+    document.getElementById("urlInput").value = url;
+    document.getElementById("urlInput").focus();
 }
 
 function renderHistory() {
     const history = JSON.parse(localStorage.getItem("ghost_history") || "[]");
     const div = document.getElementById("history");
-    
-    if(history.length === 0) {
-        div.innerHTML = `<span class="text-xs text-slate-600 italic">No recent activity</span>`;
-        return;
-    }
-
-    div.innerHTML = history.map(url => {
-        let displayUrl = url.replace('https://', '').replace('www.', '');
-        return `<button onclick="setUrl('${url}')"
-            class="text-[11px] bg-white/5 border border-white/5 px-3 py-2 rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 transition text-slate-400 truncate max-w-[180px]">
-            ${displayUrl}
-        </button>`
-    }).join('');
+    div.innerHTML = history.length ? history.map(url => `
+        <button onclick="setUrl('${url}')" class="text-[11px] bg-white/5 border border-white/5 px-3 py-2 rounded-lg hover:border-blue-500 transition text-slate-400 truncate max-w-[150px]">
+            ${url.replace('https://', '').replace('www.', '')}
+        </button>
+    `).join('') : '<span class="text-xs text-slate-600 italic">No recent history</span>';
 }
-
-renderHistory();
-
-document.getElementById("urlInput").addEventListener("keydown", e => {
-    if (e.key === "Enter") scrape();
-});
 
 async function copyOutput() {
     const text = document.getElementById("output").innerText;
-    const btn = document.getElementById("copyBtn");
     await navigator.clipboard.writeText(text);
-    
-    const originalText = btn.innerHTML;
-    btn.innerHTML = `<span>✅ Copied!</span>`;
-    setTimeout(() => btn.innerHTML = originalText, 2000);
+    const btn = document.getElementById("copyBtn");
+    btn.innerText = "✅ Copied!";
+    setTimeout(() => btn.innerText = "Copy Markdown", 2000);
 }
 
 async function scrape() {
     const url = document.getElementById("urlInput").value.trim();
     const loader = document.getElementById("loader");
     const resultDiv = document.getElementById("result");
+    const btn = document.getElementById("scrapeBtn");
 
-    if (!url) {
-        document.getElementById("urlInput").classList.add("border-red-500");
-        setTimeout(() => document.getElementById("urlInput").classList.remove("border-red-500"), 1000);
-        return;
-    }
+    if (!url) return;
 
     loader.classList.remove("hidden");
     resultDiv.classList.add("hidden");
+    btn.disabled = true;
 
     try {
         const res = await fetch(`${API}/scrape?url=${encodeURIComponent(url)}`);
@@ -180,21 +143,25 @@ async function scrape() {
 
         document.getElementById("title").innerText = data.title;
         document.getElementById("output").innerText = data.markdown;
+        document.getElementById("time").innerText = `⚡ ${data.time_ms || 0}ms`;
+        document.getElementById("modeTag").innerText = data.mode || "DISTILLED";
 
-        const reduction = ((1 - data.stats.distilled_chars / data.stats.raw_chars) * 100).toFixed(1);
+        let history = JSON.parse(localStorage.getItem("ghost_history") || "[]");
+        history = [url, ...history.filter(u => u !== url)].slice(0, 5);
+        localStorage.setItem("ghost_history", JSON.stringify(history));
+        renderHistory();
 
-        document.getElementById("time").innerText = `⚡ ${data.time_ms}ms`;
-        document.getElementById("reduction").innerText = `↓ ${reduction}% Compressed`;
-
-        saveHistory(url);
         resultDiv.classList.remove("hidden");
-
     } catch (err) {
-        alert("Extraction Failed: " + err.message);
+        alert("Ghost Error: " + err.message);
     } finally {
         loader.classList.add("hidden");
+        btn.disabled = false;
     }
 }
+
+renderHistory();
+document.getElementById("urlInput").addEventListener("keydown", e => { if (e.key === "Enter") scrape(); });
 </script>
 
 </body>
