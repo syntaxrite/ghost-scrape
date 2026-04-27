@@ -4,6 +4,8 @@ const { Readability } = require("@mozilla/readability");
 const TurndownService = require("turndown");
 const { gfm } = require("turndown-plugin-gfm");
 
+const preferBrowserless = isMedium(domain) || mode === "deep";
+
 const BROWSERLESS_TOKEN = process.env.BROWSERLESS_TOKEN;
 const BROWSERLESS_CONTENT_URL =
   process.env.BROWSERLESS_CONTENT_URL || "https://chrome.browserless.io/content";
@@ -189,16 +191,24 @@ function cleanMedium(doc) {
 }
 
 function cleanGeneric(doc) {
+  // remove junk first
+  doc.querySelectorAll(`
+    script, style, iframe, nav, header, footer, aside,
+    .ads, .advertisement, .promo, .popup, .modal, .cookie
+  `).forEach(el => el.remove());
+
   const reader = new Readability(doc);
   const article = reader.parse();
+
   if (!article || !article.content) return null;
 
   return {
     title: article.title || doc.title || "Untitled",
     content: article.content,
-    textContent: article.textContent || "",
+    textContent: article.textContent || ""
   };
 }
+
 
 async function fetchWithBrowserless(url) {
   if (!BROWSERLESS_TOKEN) {
