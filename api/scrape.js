@@ -64,13 +64,21 @@ function isMedium(domain) {
 
 function looksLikeChallenge(html) {
   const s = String(html || "").toLowerCase();
+
   return (
-    s.includes("performing security verification") ||
-    s.includes("verify you are not a bot") ||
-    s.includes("security verification") ||
-    s.includes("captcha") ||
-    s.includes("access denied") ||
-    s.includes("unusual traffic")
+    // Cloudflare / bot walls
+    s.includes("cf-browser-verification") ||
+    s.includes("checking your browser before accessing") ||
+    s.includes("cloudflare ray id") ||
+
+    // generic bot protection pages
+    s.includes("access denied") && s.includes("server") ||
+    s.includes("why do i have to complete a captcha") ||
+    s.includes("enter the characters you see below") ||
+
+    // medium specific
+    s.includes("performing security verification") &&
+    s.includes("verify you are not a bot")
   );
 }
 
