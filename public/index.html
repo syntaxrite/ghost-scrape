@@ -13,26 +13,26 @@
 <body class="p-8">
     <div class="max-w-3xl mx-auto">
         <h1 class="text-3xl font-bold mb-2">Ghost<span class="text-blue-500">Scrape</span> Debugger</h1>
-        <p class="text-slate-400 mb-8">Manual testing mode (No login required)</p>
+        <p class="text-slate-400 mb-8">Direct Backend Test — No Login Required</p>
 
         <div class="glass p-6 rounded-2xl space-y-6">
             <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Your API Key (Get this from Supabase Table)</label>
-                <input type="text" id="manualKey" placeholder="Paste your api_key here..." 
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Manual API Key (From your Supabase Table)</label>
+                <input type="text" id="manualKey" placeholder="Paste an api_key from your profiles table..." 
                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-blue-400 font-mono focus:border-blue-500 outline-none">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL</label>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL to Scrape</label>
                 <div class="flex gap-4">
-                    <input type="text" id="testUrl" placeholder="https://example.com" 
+                    <input type="text" id="testUrl" placeholder="https://quotes.toscrape.com" 
                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none">
-                    <button onclick="runTest()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold">Scrape</button>
+                    <button onclick="runTest()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold transition">Scrape</button>
                 </div>
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Response</label>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">JSON Response</label>
                 <pre id="output" class="w-full bg-black/80 rounded-xl p-6 text-sm text-blue-300 overflow-x-auto min-h-[300px] border border-white/5 font-mono">Results will appear here...</pre>
             </div>
         </div>
@@ -45,22 +45,26 @@
             const out = document.getElementById('output');
             const btn = document.getElementById('btn');
 
-            if (!url || !key) return alert("Fill in both URL and API Key!");
+            if (!url || !key) return alert("Please enter both the API Key and a URL!");
 
-            out.innerText = "Connecting to Vercel Backend...";
+            out.innerText = "Connecting to https://ghost-scrape.tech/scrape...";
             btn.disabled = true;
-            btn.innerText = "Loading...";
+            btn.innerText = "Processing...";
 
             try {
-                // We use /scrape because your vercel.json rewrites /scrape to /api/index.js
+                // This calls the endpoint defined in your vercel.json
                 const response = await fetch(`/scrape?url=${encodeURIComponent(url)}`, {
-                    headers: { 'x-api-key': key }
+                    method: 'GET',
+                    headers: { 
+                        'x-api-key': key,
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 const data = await response.json();
                 out.innerText = JSON.stringify(data, null, 2);
             } catch (err) {
-                out.innerText = "FATAL ERROR: " + err.message;
+                out.innerText = "CONNECTION ERROR: " + err.message + "\n\nMake sure your Vercel deployment is finished and the /api folder exists.";
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Scrape";
