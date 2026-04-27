@@ -169,27 +169,28 @@ function cleanBBC(doc) {
 }
 
 function cleanMedium(doc) {
-  const title =
-    doc.querySelector("article h1")?.textContent?.trim() ||
-    doc.querySelector("h1")?.textContent?.trim() ||
-    doc.title?.split("|")[0]?.trim() ||
-    "Untitled";
+  const article = doc.querySelector("article");
 
-  const article = doc.querySelector("article") || doc.querySelector("main");
   if (!article) return null;
 
   const clone = article.cloneNode(true);
-  clone
-    .querySelectorAll("script, style, iframe, figure, aside, form, button, svg, noscript")
-    .forEach((el) => el.remove());
+
+  clone.querySelectorAll(`
+    button, svg, aside, form, iframe,
+    [role="button"], [aria-hidden="true"]
+  `).forEach(el => el.remove());
+
+  const title =
+    doc.querySelector("h1")?.innerText ||
+    doc.title.split("|")[0] ||
+    "Untitled";
 
   return {
     title,
     content: clone.innerHTML,
-    textContent: clone.textContent || "",
+    textContent: clone.textContent || ""
   };
 }
-
 function cleanGeneric(doc) {
   // remove junk first
   doc.querySelectorAll(`
