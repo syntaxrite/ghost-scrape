@@ -1,68 +1,59 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostScrape Test</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>GhostScrape Test Tool</title>
 </head>
-<body class="bg-[#02040a] text-white flex items-center justify-center min-h-screen p-6">
-    <div class="w-full max-w-2xl bg-[#0d1117] border border-white/10 p-8 rounded-3xl shadow-2xl">
-        <h1 class="text-2xl font-bold mb-6 text-center">Ghost<span class="text-blue-500">Scrape</span> Test Console</h1>
-        
-        <div class="space-y-4">
-            <input type="text" id="manualKey" placeholder="Paste your API Key here" 
-                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-blue-400 font-mono outline-none focus:border-blue-500">
+<body style="background-color: white; color: black; font-family: sans-serif; padding: 20px;">
 
-            <div class="flex gap-2">
-                <input type="text" id="targetUrl" placeholder="https://example.com" 
-                    class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500">
-                <button onclick="scrapeNow()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold transition">
-                    Scrape
-                </button>
-            </div>
+    <h1>GhostScrape Debugger</h1>
+    <p>Enter your details below to scrape a URL.</p>
+    <hr>
 
-            <div class="mt-6">
-                <label class="text-xs font-bold text-gray-500 uppercase">Output</label>
-                <pre id="output" class="mt-2 w-full bg-black rounded-xl p-4 text-sm text-green-400 overflow-auto max-h-[400px] border border-white/5 font-mono">
-Ready...
-                </pre>
-            </div>
-        </div>
+    <div style="margin-bottom: 20px;">
+        <label><b>1. Your API Key:</b></label><br>
+        <input type="text" id="key" style="width: 400px;" placeholder="Paste key from Supabase here">
     </div>
 
+    <div style="margin-bottom: 20px;">
+        <label><b>2. URL to Scrape:</b></label><br>
+        <input type="text" id="url" style="width: 400px;" placeholder="https://example.com">
+        <button id="btn" onclick="startScrape()">SCRAPE NOW</button>
+    </div>
+
+    <hr>
+    <h3>Results:</h3>
+    <pre id="output" style="background: #eee; padding: 10px; border: 1px solid #ccc; min-height: 200px; white-space: pre-wrap;">Waiting for input...</pre>
+
     <script>
-        async function scrapeNow() {
-            const url = document.getElementById('targetUrl').value;
-            const key = document.getElementById('manualKey').value;
+        async function startScrape() {
+            const urlInput = document.getElementById('url').value;
+            const keyInput = document.getElementById('key').value;
             const out = document.getElementById('output');
             const btn = document.getElementById('btn');
 
-            if (!url || !key) {
-                alert("Enter both the API Key and the URL!");
+            if (!urlInput || !keyInput) {
+                alert("Please fill in both boxes.");
                 return;
             }
 
-            out.innerText = "Connecting to backend...";
+            out.innerText = "Connecting to ghost-scrape.tech/scrape...";
             btn.disabled = true;
-            btn.innerText = "Working...";
 
             try {
-                // This calls your Vercel backend at ghost-scrape.tech/scrape
-                const res = await fetch(`/scrape?url=${encodeURIComponent(url)}`, {
+                const response = await fetch('/scrape?url=' + encodeURIComponent(urlInput), {
                     method: 'GET',
-                    headers: { 'x-api-key': key }
+                    headers: { 'x-api-key': keyInput }
                 });
                 
-                const data = await res.json();
+                const data = await response.json();
                 out.innerText = JSON.stringify(data, null, 2);
             } catch (err) {
-                out.innerText = "Error: " + err.message;
+                out.innerText = "Error connecting to server: " + err.message;
             } finally {
                 btn.disabled = false;
-                btn.innerText = "Scrape";
             }
         }
     </script>
+
 </body>
 </html>
