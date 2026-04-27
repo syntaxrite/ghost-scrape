@@ -11,11 +11,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. PROXY CONFIG
+// Proxy: Keep-alive for speed
 const proxyUrl = `http://${process.env.PROXY_USER}:${process.env.PROXY_PASS}@${process.env.PROXY_URL}`;
 const agent = new HttpProxyAgent(proxyUrl, { keepAlive: true, timeout: 10000 });
 
-// 2. MARKDOWN CONFIG
+// Markdown: Optimized for AI
 const turndownService = new TurndownService({ 
     headingStyle: 'atx', 
     hr: '---',
@@ -30,10 +30,10 @@ app.get("/scrape", async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL required" });
 
-    let dom; 
+    let dom; // Declare outside so finally block can see it
 
     try {
-        // 3. FETCH DATA (Fixed Syntax)
+        // 1. Corrected Axios Fetch
         const response = await axios.get(url, { 
             httpAgent: agent, 
             httpsAgent: agent,
@@ -45,22 +45,24 @@ app.get("/scrape", async (req, res) => {
             }
         });
 
-        // 4. PARSE DATA
+        // 2. Parse DOM
         dom = new JSDOM(response.data, { url });
         const doc = dom.window.document;
 
-        // Junk Removal
+        // Strip junk
         const junk = doc.querySelectorAll('script, style, iframe, footer, nav, header, aside, .ads, .sidebar, svg');
-        for (let i = 0; i < junk.length; i++) junk[i].remove();
+        for (let i = 0; i < junk.length; i++) {
+            junk[i].remove();
+        }
 
+        // 3. Extraction
         const reader = new Readability(doc);
         const article = reader.parse();
 
-        if (!article) throw new Error("Could not extract clean content from this site.");
+        if (!article) throw new Error("Could not extract clean content.");
 
         const markdown = turndownService.turndown(article.content);
 
-        // 5. SUCCESS
         res.json({
             success: true,
             title: article.title,
@@ -73,7 +75,6 @@ app.get("/scrape", async (req, res) => {
         console.error("Scrape Error:", error.message);
         res.status(500).json({ success: false, error: error.message });
     } finally {
-        // 6. MEMORY CLEANUP
         if (dom) {
             dom.window.close();
             dom = null;
