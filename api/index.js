@@ -11,70 +11,59 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Proxy setup for rotation (Uses your .env variables)
+// Optimized Proxy Agent
 const proxyUrl = `http://${process.env.PROXY_USER}:${process.env.PROXY_PASS}@${process.env.PROXY_URL}`;
-const agent = new HttpProxyAgent(proxyUrl);
+const agent = new HttpProxyAgent(proxyUrl, {
+    keepAlive: true, // Smoother: Keeps connection open for faster subsequent requests
+    timeout: 10000
+});
 
-// Configure Turndown for High-End Output
 const turndownService = new TurndownService({ 
     headingStyle: 'atx', 
     hr: '---',
     bulletListMarker: '-',
     codeBlockStyle: 'fenced'
-});
+}).use(gfm);
 
-// Enable GitHub Flavored Markdown (for tables)
-turndownService.use(gfm); 
-
-// SUPERIOR CLEANING RULES: Remove links and images to keep it pure text for AI
-turndownService.addRule('no-links', {
-    filter: ['a'],
-    replacement: (content) => content 
-});
-turndownService.addRule('no-images', {
-    filter: ['img'],
-    replacement: () => '' 
-});
+// Rule: Keep content, strip formatting that clutters AI context
+turndownService.addRule('no-links', { filter: ['a'], replacement: (c) => c });
+turndownService.addRule('no-images', { filter: ['img'], replacement: () => '' });
 
 app.get("/scrape", async (req, res) => {
     const { url } = req.query;
-
-    if (!url) return res.status(400).json({ error: "URL is required" });
+    if (!url) return res.status(400).json({ error: "URL required" });
 
     try {
-        console.log(`Cleaning: ${url}`);
-
-        // 1. Fetch HTML using Axios + Residential Proxy
+        // 1. Optimized Fetch: Only wait 10s max for the initial byte
         const response = await axios.get(url, { 
             httpAgent: agent, 
             httpsAgent: agent,
-            timeout: 15000,
+            timeout: 10000, 
+            maxContentLength: 5 * 1024 * 1024, // 5MB Limit to prevent memory crashes
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0',
-                'Accept': 'text/html,application/xhtml+xml,xml;q=0.9,image/webp,*/*;q=0.8'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Accept-Encoding': 'gzip, deflate, br' // Smoother: Ask for compressed data
             }
         });
 
-        // 2. Load into JSDOM
-        const dom = new JSDOM(response.data, { url });
+        // 2. High-Speed Parsing
+        const dom = new JSDOM(response.data, { url, runScripts: "dangerously" === false });
         const doc = dom.window.document;
 
-        // 3. AGGRESSIVE JUNK REMOVAL: Strip ads and nav before the parser even looks at it
-        const junkSelectors = 'script, style, iframe, footer, nav, header, aside, .ads, .sidebar, #comments, .menu';
-        doc.querySelectorAll(junkSelectors).forEach(el => el.remove());
+        // Strip junk immediately to reduce Readability workload
+        const junk = doc.querySelectorAll('script, style, iframe, footer, nav, header, aside, .ads, .sidebar, svg');
+        for (let i = 0; i < junk.length; i++) junk[i].remove();
 
-        // 4. BEAUTIFUL EXTRACTION: Use Mozilla's Readability to find the "Main Story"
         const reader = new Readability(doc);
         const article = reader.parse();
 
-        if (!article) {
-            throw new Error("This page is too messy to clean. Try a different URL.");
-        }
+        if (!article) throw new Error("Content extraction failed");
 
-        // 5. CONVERT TO MARKDOWN
         const markdown = turndownService.turndown(article.content);
 
-        // 6. RESPOND
+        // 3. Clear memory before responding
+        dom.window.close(); 
+
         res.json({
             success: true,
             title: article.title,
@@ -84,11 +73,10 @@ app.get("/scrape", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Clean Error:", error.message);
+        console.error("Engine Error:", error.message);
         res.status(500).json({ 
             success: false, 
-            error: error.message,
-            tip: "This tool is optimized for Articles, Blogs, and Wikis. It will not work on Social Media."
+            error: error.code === 'ECONNABORTED' ? "Target site timed out" : error.message 
         });
     }
 });
