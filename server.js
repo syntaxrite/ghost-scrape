@@ -7,72 +7,89 @@ const TurndownService = require("turndown");
 const { chromium } = require("playwright-extra");
 const stealth = require("puppeteer-extra-plugin-stealth")();
 const { HttpProxyAgent } = require('http-proxy-agent');
+const { createClient } = require('@supabase/supabase-js');
 
 require("dotenv").config();
 chromium.use(stealth);
 
 const app = express();
-
-// Proxy Setup
-const PROXY_URL = process.env.PROXY_URL; 
-const PROXY_USER = process.env.PROXY_USER;
-const PROXY_PASS = process.env.PROXY_PASS;
-const FULL_PROXY = `http://${PROXY_USER}:${PROXY_PASS}@${PROXY_URL?.replace('http://', '')}`;
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 app.use(cors({ origin: "*" }));
+app.use(express.json());
 
-// Utility: Determine if we NEED a browser (Smart Routing)
+const FULL_PROXY = `http://${process.env.PROXY_USER}:${process.env.PROXY_PASS}@${process.env.PROXY_URL?.replace('http://', '')}`;
+
+// Smart Router: Does this site NEED a browser?
 const needsStealth = (url) => {
-    const targets = ['reddit.com', 'quora.com', 'twitter.com', 'instagram.com', 'facebook.com'];
+    const targets = ['reddit.com', 'quora.com', 'twitter.com', 'instagram.com', 'facebook.com', 'linkedin.com'];
     return targets.some(target => url.toLowerCase().includes(target));
 };
 
 async function fetchFast(url) {
     const agent = new HttpProxyAgent(FULL_PROXY);
-    const response = await axios.get(url, { 
+    const res = await axios.get(url, { 
         httpAgent: agent, httpsAgent: agent,
-        timeout: 10000,
+        timeout: 15000,
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36" }
     });
-    return response.data;
+    return res.data;
 }
 
 async function fetchStealth(url) {
     const browser = await chromium.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        proxy: { server: PROXY_URL, username: PROXY_USER, password: PROXY_PASS }
+        proxy: { server: process.env.PROXY_URL, username: process.env.PROXY_USER, password: process.env.PROXY_PASS }
     });
     try {
         const context = await browser.newContext();
         const page = await context.newPage();
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
-        const content = await page.content();
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+        const html = await page.content();
         await browser.close();
-        return content;
-    } catch (err) {
+        return html;
+    } catch (e) {
         await browser.close();
-        throw err;
+        throw e;
     }
 }
 
-app.get("/scrape", async (req, res) => {
+// THE GATEKEEPER MIDDLEWARE
+const authenticate = async (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) return res.status(401).json({ error: "Missing API Key. Provide 'x-api-key' in headers." });
+
+    const { data: user, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('api_key', apiKey)
+        .single();
+
+    if (error || !user) return res.status(403).json({ error: "Invalid API Key." });
+    if (user.usage_count >= user.usage_limit) return res.status(429).json({ error: "Limit reached. Upgrade at ghost-scrape.tech" });
+
+    req.user = user;
+    next();
+};
+
+app.get("/scrape", authenticate, async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL required" });
-    
-    const startTime = Date.now();
+
+    const start = Date.now();
     let html, mode;
 
     try {
         if (needsStealth(url)) {
-            mode = "Stealth (Chromium)";
+            mode = "stealth";
             html = await fetchStealth(url);
         } else {
             try {
-                mode = "FastFetch (Axios)";
+                mode = "fast";
                 html = await fetchFast(url);
             } catch (e) {
-                mode = "Stealth (Failover)";
+                mode = "stealth-failover";
                 html = await fetchStealth(url);
             }
         }
@@ -82,15 +99,15 @@ app.get("/scrape", async (req, res) => {
         const article = reader.parse();
         const turndown = new TurndownService({ headingStyle: 'atx' });
 
+        // Update usage count in Supabase
+        await supabase.rpc('increment_usage', { target_api_key: req.user.api_key });
+
         res.json({
             success: true,
-            title: article?.title || "No Title Found",
-            markdown: article ? turndown.turndown(article.content) : "No content distilled",
-            mode,
-            time_ms: Date.now() - startTime,
-            stats: {
-                raw_chars: html.length,
-                distilled_chars: article ? article.textContent.length : 0
+            data: {
+                title: article?.title,
+                markdown: article ? turndown.turndown(article.content) : "",
+                metadata: { source: url, mode, time_ms: Date.now() - start }
             }
         });
     } catch (err) {
@@ -98,5 +115,4 @@ app.get("/scrape", async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`GhostScrape is active on port ${PORT}`));
+app.listen(process.env.PORT || 3000, () => console.log("GhostScrape API Engine Live"));
