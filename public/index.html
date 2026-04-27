@@ -3,147 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostScrape | Developer Console</title>
+    <title>GhostScrape | Testing Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code&display=swap" rel="stylesheet">
     <style>
-        body { background: #02040a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(13, 17, 23, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
-        .code-font { font-family: 'Fira Code', monospace; }
-        .glow { box-shadow: 0 0 20px rgba(59, 130, 246, 0.2); }
+        body { background: #02040a; color: #e2e8f0; font-family: sans-serif; }
+        .glass { background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.1); }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    <div class="max-w-5xl mx-auto">
-        <div class="flex justify-between items-center mb-12">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold">G</div>
-                <h1 class="text-2xl font-bold tracking-tight">Ghost<span class="text-blue-500">Scrape</span></h1>
-            </div>
-            <div id="auth-section">
-                <button onclick="login()" id="loginBtn" class="bg-white text-black px-5 py-2 rounded-full font-semibold hover:bg-slate-200 transition">Sign In</button>
-                <button onclick="logout()" id="logoutBtn" class="hidden text-slate-400 hover:text-white transition">Sign Out</button>
-            </div>
-        </div>
+<body class="p-8">
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2">Ghost<span class="text-blue-500">Scrape</span> Debugger</h1>
+        <p class="text-slate-400 mb-8">Manual testing mode (No login required)</p>
 
-        <div id="dashboard" class="hidden space-y-8 animate-in fade-in duration-500">
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass p-6 rounded-2xl">
-                    <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">API Key</p>
-                    <div class="flex items-center gap-2">
-                        <input type="password" id="apiKeyDisplay" readonly class="bg-transparent text-blue-400 font-mono text-sm w-full outline-none">
-                        <button onclick="copyKey()" class="text-slate-400 hover:text-white">Copy</button>
-                    </div>
-                </div>
-                <div class="glass p-6 rounded-2xl">
-                    <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Usage (Credits)</p>
-                    <p class="text-xl font-bold" id="usageText">0 / 100</p>
-                </div>
-                <div class="glass p-6 rounded-2xl">
-                    <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Plan Tier</p>
-                    <p class="text-xl font-bold text-emerald-400" id="tierText">Free</p>
+        <div class="glass p-6 rounded-2xl space-y-6">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Your API Key (Get this from Supabase Table)</label>
+                <input type="text" id="manualKey" placeholder="Paste your api_key here..." 
+                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-blue-400 font-mono focus:border-blue-500 outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL</label>
+                <div class="flex gap-4">
+                    <input type="text" id="testUrl" placeholder="https://example.com" 
+                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none">
+                    <button onclick="runTest()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold">Scrape</button>
                 </div>
             </div>
 
-            <div class="glass p-8 rounded-3xl glow">
-                <h2 class="text-xl font-bold mb-6">API Playground</h2>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL</label>
-                        <div class="flex gap-4">
-                            <input type="text" id="testUrl" placeholder="https://example.com" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition">
-                            <button onclick="testApi()" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold transition">Run Scrape</button>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">JSON Response</label>
-                        <pre id="testOutput" class="w-full bg-black/80 rounded-xl p-6 text-sm text-blue-300 overflow-x-auto min-h-[200px] border border-white/5 code-font">Waiting for request...</pre>
-                    </div>
-                </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Response</label>
+                <pre id="output" class="w-full bg-black/80 rounded-xl p-6 text-sm text-blue-300 overflow-x-auto min-h-[300px] border border-white/5 font-mono">Results will appear here...</pre>
             </div>
-        </div>
-
-        <div id="login-prompt" class="text-center py-20">
-            <h2 class="text-4xl font-bold mb-4">The Web, in Markdown.</h2>
-            <p class="text-slate-400 max-w-md mx-auto mb-8">Build AI agents that actually understand the web. GhostScrape converts any URL into clean Markdown instantly.</p>
-            <button onclick="login()" class="bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl font-bold text-lg transition glow">Get Started for Free</button>
         </div>
     </div>
 
     <script>
-        // 1. CONFIGURATION
-        const supabase = supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY');
-        const API_BASE = window.location.origin; // Automatically uses your Vercel domain
-
-        // 2. AUTH LOGIC
-        async function login() {
-            const email = prompt("Enter your email:");
-            if (email) {
-                const { error } = await supabase.auth.signInWithOtp({ email });
-                if (error) alert(error.message);
-                else alert("Check your email for the login link!");
-            }
-        }
-
-        async function logout() {
-            await supabase.auth.signOut();
-            window.location.reload();
-        }
-
-        async function checkUser() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                document.getElementById('login-prompt').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-                document.getElementById('loginBtn').classList.add('hidden');
-                document.getElementById('logoutBtn').classList.remove('hidden');
-                
-                // Fetch Profile from Supabase
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profile) {
-                    document.getElementById('apiKeyDisplay').value = profile.api_key;
-                    document.getElementById('usageText').innerText = `${profile.usage_count} / ${profile.usage_limit}`;
-                    document.getElementById('tierText').innerText = profile.tier.toUpperCase();
-                }
-            }
-        }
-
-        // 3. API LOGIC
-        async function testApi() {
+        async function runTest() {
             const url = document.getElementById('testUrl').value;
-            const key = document.getElementById('apiKeyDisplay').value;
-            const out = document.getElementById('testOutput');
-            
-            if(!url) return alert("Please enter a URL");
+            const key = document.getElementById('manualKey').value;
+            const out = document.getElementById('output');
+            const btn = document.getElementById('btn');
 
-            out.innerText = "// GhostScrape is thinking...";
-            
+            if (!url || !key) return alert("Fill in both URL and API Key!");
+
+            out.innerText = "Connecting to Vercel Backend...";
+            btn.disabled = true;
+            btn.innerText = "Loading...";
+
             try {
-                const res = await fetch(`${API_BASE}/scrape?url=${encodeURIComponent(url)}`, {
+                // We use /scrape because your vercel.json rewrites /scrape to /api/index.js
+                const response = await fetch(`/scrape?url=${encodeURIComponent(url)}`, {
                     headers: { 'x-api-key': key }
                 });
-                const data = await res.json();
+                
+                const data = await response.json();
                 out.innerText = JSON.stringify(data, null, 2);
-            } catch (e) {
-                out.innerText = "Error: " + e.message;
+            } catch (err) {
+                out.innerText = "FATAL ERROR: " + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Scrape";
             }
         }
-
-        function copyKey() {
-            const copyText = document.getElementById('apiKeyDisplay');
-            navigator.clipboard.writeText(copyText.value);
-            alert("API Key copied to clipboard");
-        }
-
-        checkUser();
     </script>
 </body>
 </html>
