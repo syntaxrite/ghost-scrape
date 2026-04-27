@@ -3,64 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostScrape | Testing Console</title>
+    <title>GhostScrape Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background: #02040a; color: #e2e8f0; font-family: sans-serif; }
-        .glass { background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.1); }
-    </style>
 </head>
-<body class="p-8">
-    <div class="max-w-3xl mx-auto">
-        <h1 class="text-3xl font-bold mb-2">Ghost<span class="text-blue-500">Scrape</span> Debugger</h1>
-        <p class="text-slate-400 mb-8">Manual testing mode (No login required)</p>
+<body class="bg-[#02040a] text-white flex items-center justify-center min-h-screen p-6">
+    <div class="w-full max-w-2xl bg-[#0d1117] border border-white/10 p-8 rounded-3xl shadow-2xl">
+        <h1 class="text-2xl font-bold mb-6 text-center">Ghost<span class="text-blue-500">Scrape</span> Test Console</h1>
+        
+        <div class="space-y-4">
+            <input type="text" id="manualKey" placeholder="Paste your API Key here" 
+                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-blue-400 font-mono outline-none focus:border-blue-500">
 
-        <div class="glass p-6 rounded-2xl space-y-6">
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Your API Key (Get this from Supabase Table)</label>
-                <input type="text" id="manualKey" placeholder="Paste your api_key here..." 
-                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-blue-400 font-mono focus:border-blue-500 outline-none">
+            <div class="flex gap-2">
+                <input type="text" id="targetUrl" placeholder="https://example.com" 
+                    class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500">
+                <button onclick="scrapeNow()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold transition">
+                    Scrape
+                </button>
             </div>
 
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Target URL</label>
-                <div class="flex gap-4">
-                    <input type="text" id="testUrl" placeholder="https://example.com" 
-                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none">
-                    <button onclick="runTest()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-bold">Scrape</button>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Response</label>
-                <pre id="output" class="w-full bg-black/80 rounded-xl p-6 text-sm text-blue-300 overflow-x-auto min-h-[300px] border border-white/5 font-mono">Results will appear here...</pre>
+            <div class="mt-6">
+                <label class="text-xs font-bold text-gray-500 uppercase">Output</label>
+                <pre id="output" class="mt-2 w-full bg-black rounded-xl p-4 text-sm text-green-400 overflow-auto max-h-[400px] border border-white/5 font-mono">
+Ready...
+                </pre>
             </div>
         </div>
     </div>
 
     <script>
-        async function runTest() {
-            const url = document.getElementById('testUrl').value;
+        async function scrapeNow() {
+            const url = document.getElementById('targetUrl').value;
             const key = document.getElementById('manualKey').value;
             const out = document.getElementById('output');
             const btn = document.getElementById('btn');
 
-            if (!url || !key) return alert("Fill in both URL and API Key!");
+            if (!url || !key) {
+                alert("Enter both the API Key and the URL!");
+                return;
+            }
 
-            out.innerText = "Connecting to Vercel Backend...";
+            out.innerText = "Connecting to backend...";
             btn.disabled = true;
-            btn.innerText = "Loading...";
+            btn.innerText = "Working...";
 
             try {
-                // We use /scrape because your vercel.json rewrites /scrape to /api/index.js
-                const response = await fetch(`/scrape?url=${encodeURIComponent(url)}`, {
+                // This calls your Vercel backend at ghost-scrape.tech/scrape
+                const res = await fetch(`/scrape?url=${encodeURIComponent(url)}`, {
+                    method: 'GET',
                     headers: { 'x-api-key': key }
                 });
                 
-                const data = await response.json();
+                const data = await res.json();
                 out.innerText = JSON.stringify(data, null, 2);
             } catch (err) {
-                out.innerText = "FATAL ERROR: " + err.message;
+                out.innerText = "Error: " + err.message;
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Scrape";
