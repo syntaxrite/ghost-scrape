@@ -11,79 +11,80 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// SUPERIOR PROXY CONFIG: Keep-alive reduces handshake time by 50%
+// PROXY: Keep-alive for speed
 const proxyUrl = `http://${process.env.PROXY_USER}:${process.env.PROXY_PASS}@${process.env.PROXY_URL}`;
-const agent = new HttpProxyAgent(proxyUrl, {
-    keepAlive: true, 
-    timeout: 10000
-});
+const agent = new HttpProxyAgent(proxyUrl, { keepAlive: true, timeout: 10000 });
 
-// SUPERIOR MARKDOWN CONFIG: Cleanest possible output for LLMs
+// MARKDOWN: High-end AI configuration
 const turndownService = new TurndownService({ 
     headingStyle: 'atx', 
     hr: '---',
     bulletListMarker: '-',
-    codeBlockStyle: 'fenced',
-    emDelimiter: '*' 
+    codeBlockStyle: 'fenced'
 }).use(gfm);
 
-// Remove links/images but preserve the text content for the AI to "read"
-turndownService.addRule('no-links', { filter: ['a'], replacement: (c) => c });
+// Superior Cleaning: Strip noise but keep context
+turndownService.addRule('no-links', { filter: ['a'], replacement: (content) => content });
 turndownService.addRule('no-images', { filter: ['img'], replacement: () => '' });
 
 app.get("/scrape", async (req, res) => {
     const { url } = req.query;
+    const apiKey = req.headers['x-api-key']; // Ready for future use
+
     if (!url) return res.status(400).json({ error: "URL required" });
 
-    let dom; // Defined outside to ensure closure in finally block
+    let dom; // Defined here so we can close it in 'finally'
 
     try {
-        // 1. OPTIMIZED FETCH
+        // 1. FETCH CONTENT
         const response = await axios.get(url, { 
             httpAgent: agent, 
             httpsAgent: agent,
-            timeout: 10000, 
-            maxContentLength: 5 * 1024 * 1024, // 5MB Limit
+            timeout: 12000, 
+            maxContentLength: 5242880, // 5MB limit
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0',
-                'Accept': 'text/html,application/xhtml+xml,xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br' 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/123.0.0.0',
+                'Accept-Encoding': 'gzip, deflate, br'
             }
         });
 
-        // 2. HIGH-SPEED PARSING
-        dom = new JSDOM(response.data, { url, runScripts: "dangerously" === false });
+        // 2. PARSE DOM
+        dom = new JSDOM(response.data, { url });
         const doc = dom.window.document;
 
-        // Strip junk before Readability starts (saves CPU cycles)
-        const junk = doc.querySelectorAll('script, style, iframe, footer, nav, header, aside, .ads, .sidebar, svg, noscript');
+        // Aggressive junk removal for speed
+        const junk = doc.querySelectorAll('script, style, iframe, footer, nav, header, aside, .ads, .sidebar, svg');
         for (let i = 0; i < junk.length; i++) junk[i].remove();
 
+        // 3. EXTRACT ARTICLE
         const reader = new Readability(doc);
         const article = reader.parse();
 
-        if (!article) throw new Error("Could not extract main content.");
+        if (!article) throw new Error("This page couldn't be cleaned. It might be a login page or too complex.");
 
-        // 3. CLEAN MARKDOWN CONVERSION
         const markdown = turndownService.turndown(article.content);
 
+        // 4. SUCCESS RESPONSE
         res.json({
             success: true,
             title: article.title,
-            siteName: article.siteName,
-            wordCount: article.textContent.split(/\s+/).filter(w => w.length > 0).length,
+            siteName: article.siteName || "Unknown",
+            wordCount: article.textContent.split(/\s+/).filter(n => n.length > 0).length,
             markdown: markdown
         });
 
     } catch (error) {
-        console.error("Scrape Error:", error.message);
+        console.error("Engine Error:", error.message);
         res.status(500).json({ 
             success: false, 
-            error: error.code === 'ECONNABORTED' ? "Target site timed out" : error.message 
+            error: error.message || "Failed to process the URL"
         });
     } finally {
-        // CRITICAL: Clean up memory immediately
-        if (dom) dom.window.close();
+        // SUPERIOR PERFORMANCE: Manually clear memory
+        if (dom) {
+            dom.window.close();
+            dom = null;
+        }
     }
 });
 
