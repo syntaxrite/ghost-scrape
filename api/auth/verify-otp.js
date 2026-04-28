@@ -8,14 +8,15 @@ function generateApiKey() {
 module.exports = async (req, res) => {
   const { email, code } = req.body;
 
-  const { data } = await supabase
+  // 1. Verify OTP
+  const { data, error } = await supabase
     .from("otp_codes")
     .select("*")
     .eq("email", email)
     .eq("code", code)
     .single();
 
-  if (!data) {
+  if (error || !data) {
     return res.status(401).json({ error: "Invalid OTP" });
   }
 
@@ -23,23 +24,42 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: "OTP expired" });
   }
 
-  // create user if not exists
-  let user = await supabase.from("users").select("*").eq("email", email).single();
+  // 2. Get or create user
+  let { data: user, error: userError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
 
-  if (!user.data) {
-    const created = await supabase.from("users").insert({ email }).select().single();
-    user = created;
+  if (userError || !user) {
+    const { data: createdUser, error: createError } = await supabase
+      .from("users")
+      .insert({ email })
+      .select()
+      .single();
+
+    if (createError) {
+      return res.status(500).json({ error: "User creation failed" });
+    }
+
+    user = createdUser;
   }
 
+  // 3. Generate API key
   const apiKey = generateApiKey();
 
+  await supabase.from("api_keys").delete().eq("user_id", user.id);
+
   await supabase.from("api_keys").insert({
-    user_id: user.data.id,
+    user_id: user.id,
     key: apiKey
   });
 
+  // 4. Delete OTP
+  await supabase.from("otp_codes").delete().eq("id", data.id);
+
   return res.json({
-  "success": true,
-  "apiKey": "user_api_key_here"
-});
+    success: true,
+    apiKey
+  });
 };
