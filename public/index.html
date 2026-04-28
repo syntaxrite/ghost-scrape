@@ -347,7 +347,9 @@ function incrementUsage() {
                 const response = await fetch(
                     `${endpoint}?url=${encodeURIComponent(url)}`,
                     {
-                        headers: apiKey ? { "x-api-key": apiKey } : {}
+                        headers: {
+                            "x-api-key": localStorage.getItem("ghost_api_key") || ""
+                        }
                     }
                 );
 

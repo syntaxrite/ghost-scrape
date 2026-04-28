@@ -1,106 +1,145 @@
 const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
 const { fetchSmart } = require("../lib/engine");
 const { extractContent } = require("../lib/extractor");
+const { checkUsage, logUsage, DAILY_LIMIT } = require("../lib/usage");
 const supabase = require("../lib/supabase");
 
-let lastRequestTime = {};
+// ⚡ simple in-memory burst protection
+const burstCache = {};
+
+const BURST_WINDOW = 5000; // 5 sec
+const BURST_LIMIT = 2;
 
 module.exports = async (req, res) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
-  const now = Date.now();
-
-  const apiKey = req.headers["x-api-key"];
+  const apiKey = req.headers["x-api-key"] || null;
 
   try {
-    let user = null;
+    // -------------------------
+    // 🧠 BASIC INPUT VALIDATION
+    // -------------------------
+    let { url } = req.query;
 
-    // =========================
-    // 🔑 AUTH FLOW (if API key exists)
-    // =========================
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: "URL is required"
+      });
+    }
+
+    if (!/^https?:\/\//i.test(url)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid URL format"
+      });
+    }
+
+    url = normalizeUrl(url);
+
+    // -------------------------
+    // 🔐 VALIDATE API KEY
+    // -------------------------
+    let validApiKey = null;
+
     if (apiKey) {
-      const { data: keyData, error: keyError } = await supabase
+      const { data, error } = await supabase
         .from("api_keys")
-        .select("user_id")
+        .select("key, user_id")
         .eq("key", apiKey)
-        .single();
+        .maybeSingle();
 
-      if (keyError || !keyData) {
+      if (error || !data) {
         return res.status(401).json({
           success: false,
           error: "Invalid API key"
         });
       }
 
-      const { data: userData } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", keyData.user_id)
-        .single();
-
-      user = userData;
-
-      // 💳 CREDIT CHECK
-      if (!user || user.credits <= 0) {
-        return res.status(403).json({
-          success: false,
-          error: "No credits left"
-        });
-      }
+      validApiKey = data.key;
     }
 
-    // =========================
-    // 🚫 DEMO RATE LIMIT (only if NO API key)
-    // =========================
-    if (!apiKey) {
-      if (lastRequestTime[ip] && now - lastRequestTime[ip] < 60000) {
-        return res.status(429).json({
-          success: false,
-          error: "Demo limit: 1 request per minute"
-        });
-      }
+    // -------------------------
+    // ⚡ BURST PROTECTION
+    // -------------------------
+    const now = Date.now();
+    const identifier = validApiKey || ip;
 
-      lastRequestTime[ip] = now;
+    if (!burstCache[identifier]) {
+      burstCache[identifier] = [];
     }
 
-    // =========================
-    // 🌐 SCRAPING LOGIC (unchanged)
-    // =========================
-    let { url } = req.query;
-    url = normalizeUrl(url);
+    // keep only recent timestamps
+    burstCache[identifier] = burstCache[identifier].filter(
+      (t) => now - t < BURST_WINDOW
+    );
 
+    if (burstCache[identifier].length >= BURST_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        error: "Too many requests. Slow down."
+      });
+    }
+
+    burstCache[identifier].push(now);
+
+    // -------------------------
+    // 📊 USAGE LIMITS
+    // -------------------------
+    const usage = await checkUsage(validApiKey, ip);
+
+    if (!validApiKey && usage >= 1) {
+      return res.status(429).json({
+        success: false,
+        error: "Free limit reached (1 request). Login to continue."
+      });
+    }
+
+    if (validApiKey && usage >= DAILY_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        error: `Daily limit reached (${DAILY_LIMIT}/day)`
+      });
+    }
+
+    // -------------------------
+    // 🌐 FETCH + EXTRACT
+    // -------------------------
     const { html, source, wasBlocked } = await fetchSmart(url);
     const article = extractContent(html, url);
 
-    if (!article) {
-      return res.status(422).json({ success: false });
+    if (!article || !article.content) {
+      return res.status(422).json({
+        success: false,
+        error: "Could not extract content"
+      });
     }
 
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
-    // =========================
-    // 💸 DEDUCT CREDIT (only for API users)
-    // =========================
-    if (apiKey && user) {
-      await supabase
-        .from("users")
-        .update({ credits: user.credits - 1 })
-        .eq("id", user.id);
-    }
+    // -------------------------
+    // 🧾 LOG USAGE
+    // -------------------------
+    await logUsage(validApiKey, ip);
 
+    // -------------------------
+    // ✅ RESPONSE
+    // -------------------------
     return res.status(200).json({
       success: true,
-      title: article.title,
+      title: article.title || "Untitled",
       source,
+      wasBlocked: !!wasBlocked,
       markdown: markdown.slice(0, 8000),
-      wordCount: getWordCount(article.text),
-      creditsLeft: user ? user.credits - 1 : null
+      wordCount: getWordCount(article.text)
     });
 
   } catch (err) {
+    console.error("DEMO ERROR:", err);
+
     return res.status(500).json({
       success: false,
-      error: err.message
+      error: "Internal server error"
     });
   }
 };
