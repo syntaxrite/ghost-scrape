@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
   await supabase.from("otp_codes").delete().eq("id", data.id);
 
   return res.json({
-    success: true,
-    apiKey
-  });
+  success: true,
+  apiKey: apiKey
+});
 };
