@@ -1,54 +1,54 @@
-const { fetchSmart, getDomain, getSiteType, isHomepage, shouldRetry, getWordCount } = require("../lib/engine");
-const { runExtractor } = require("../lib/extractors");
-const { cleanMarkdown } = require("../lib/utils"); // Added this
-// ... rest of the code
-const TurndownService = require("turndown");
-const { gfm } = require("turndown-plugin-gfm");
-
-const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" }).use(gfm);
+const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
+const { getDomain, getSiteType, fetchSmart, shouldRetry } = require("../lib/engine");
+const { extractGeneric } = require("../lib/extractor");
 
 module.exports = async (req, res) => {
-  if (req.method !== "GET") return res.status(405).json({ error: "GET only" });
-
-  let { url } = req.query;
-  if (!url) return res.status(400).json({ error: "URL required" });
-
+  let { url, mode } = req.query;
+  
   try {
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    if (isHomepage(url)) return res.status(400).json({ error: "Homepages not supported" });
-
+    url = normalizeUrl(url);
     const domain = getDomain(url);
     const siteType = getSiteType(domain);
 
-    // Initial Fetch
-    let { html, source } = await fetchSmart(url);
-    let article = runExtractor(siteType, html, url);
+    // 1. Initial Fetch
+    let { html, source } = await fetchSmart(url, mode === "browser");
 
-    // Smart Retry
-    if (shouldRetry(article, source)) {
-      const retry = await fetchSmart(url, { forceBrowser: true });
-      const retryArticle = runExtractor(siteType, retry.html, url);
-      
-      if (getWordCount(retryArticle?.textContent) > getWordCount(article?.textContent)) {
+    // 2. Extraction
+    let article = extractGeneric(html, url);
+    let wordCount = getWordCount(article?.textContent);
+
+    // 3. Smart Retry (If content is thin, try Browserless)
+    if (shouldRetry(article, source, wordCount)) {
+      const retry = await fetchSmart(url, true);
+      const retryArticle = extractGeneric(retry.html, url);
+      const retryCount = getWordCount(retryArticle?.textContent);
+
+      if (retryCount > wordCount) {
         article = retryArticle;
-        source = retry.source;
+        source = "browserless-retry";
+        wordCount = retryCount;
       }
     }
 
-    if (!article) return res.status(422).json({ error: "Extraction failed" });
+    if (!article || !article.content) {
+      return res.status(422).json({ success: false, error: "Failed to extract content" });
+    }
 
-    const markdown = turndown.turndown(article.content);
+    // 4. Final Formatting for LLM
+    const markdown = cleanMarkdown(turndown.turndown(article.content));
 
     return res.status(200).json({
       success: true,
       title: article.title,
       domain,
+      siteType,
+      wordCount,
       source,
-      wordCount: getWordCount(article.textContent),
-      markdown: markdown.trim()
+      markdown
     });
 
   } catch (err) {
+    console.error("Scrape Error:", err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 };
