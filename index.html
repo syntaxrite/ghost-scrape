@@ -37,12 +37,10 @@
         }
         @keyframes draw { to { stroke-dashoffset: 0; } }
 
-        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.2); border-radius: 10px; }
         
-        /* Markdown Preview Styling */
         #formattedContent h1 { font-size: 2.25rem; font-weight: 900; margin-bottom: 1.5rem; color: white; }
         #formattedContent h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: #a855f7; }
         #formattedContent p { margin-bottom: 1.25rem; color: #9ca3af; line-height: 1.75; }
@@ -52,7 +50,7 @@
 <body class="min-h-screen">
 
     <nav class="max-w-7xl mx-auto px-8 py-6 flex justify-between items-center border-b border-white/5">
-        <div class="flex items-center gap-3 group cursor-pointer">
+        <div class="flex items-center gap-3 group cursor-pointer" onclick="window.location.reload()">
             <div class="p-2 bg-purple-600 rounded-xl group-hover:rotate-12 transition-all">
                 <i data-lucide="ghost" class="text-white w-6 h-6"></i>
             </div>
@@ -60,7 +58,10 @@
         </div>
         
         <div class="hidden md:flex items-center gap-8 text-sm font-bold text-gray-400">
-            <a href="https://github.com/Ghost-Scrape" target="_blank" class="hover:text-white transition-colors">GitHub</a>
+            <a href="#" class="hover:text-white transition-colors">Pricing</a>
+            <a href="#" class="hover:text-white transition-colors">API</a>
+            <div class="h-4 w-[1px] bg-white/10"></div>
+            <a href="#" class="hover:text-white transition-colors">Login</a>
             <button class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
                 Join Beta
             </button>
@@ -94,7 +95,7 @@
         <section class="max-w-3xl mx-auto mb-20">
             <div class="glass p-2 rounded-3xl flex items-center shadow-2xl focus-within:ring-2 ring-purple-500/40 transition-all">
                 <div class="pl-4 text-gray-500"><i data-lucide="link" class="w-5 h-5"></i></div>
-                <input id="urlInput" type="text" placeholder="https://en.wikipedia.org/wiki/Ghost..." 
+                <input id="urlInput" type="text" placeholder="https://www.bbc.com/news/articles/c9d4dzwdp53o" 
                        class="bg-transparent flex-1 p-4 outline-none text-lg">
                 <button id="scrapeBtn" onclick="handleScrape()" 
                         class="bg-purple-600 hover:bg-purple-500 px-10 py-4 rounded-2xl font-black transition-all flex items-center gap-2 disabled:opacity-50">
@@ -134,13 +135,18 @@
     </main>
 
     <footer class="mt-20 py-12 border-t border-white/5 text-center">
-        <p class="text-gray-600 text-xs font-mono mb-4 tracking-widest">
-            &copy; 2026 GHOST-SCRAPE.TECH — <span class="text-white">POWERING AI AGENTS</span>
+        <div class="flex justify-center gap-6 text-gray-500 text-[10px] uppercase font-bold mb-6 tracking-widest">
+            <a href="#" class="hover:text-purple-500 transition-colors">Contact</a>
+            <a href="https://github.com/Ghost-Scrape/Ghost-Scrape.io" target="_blank" class="hover:text-purple-400 transition-colors flex items-center gap-1">
+                <i data-lucide="github" class="w-4 h-4"></i> GitHub
+            </a>
+        </div>
+        <p class="text-gray-600 text-[10px] font-mono tracking-[0.3em]">
+            &copy; 2026 GHOST-SCRAPE.TECH — <span class="text-gray-400 tracking-normal">POWERING AI AGENTS</span>
         </p>
     </footer>
 
     <script>
-        // SINGLE declaration of state variables
         let ghostMarkdown = "";
         let isFormattedMode = false;
 
@@ -148,10 +154,9 @@
             wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
             docs: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status",
             blog: "https://overreacted.io/the-wet-codebase/",
-            news: "https://www.nytimes.com/2024/01/01/business/economy/china-economy-2023.html"
+            news: "https://www.bbc.com/news/articles/c9d4dzwdp53o"
         };
 
-        // Initialize Lucide
         lucide.createIcons();
 
         function quickTest(type) {
@@ -195,13 +200,11 @@
                 if (data.success) {
                     ghostMarkdown = data.markdown;
                     
-                    // Update UI elements
                     document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
                     document.getElementById('rawContent').innerText = data.markdown;
                     document.getElementById('wordCount').innerText = data.wordCount || 0;
                     document.getElementById('sourceType').innerText = data.source || "Ghost Engine";
                     
-                    // Reset View State
                     isFormattedMode = false;
                     document.getElementById('rawContent').classList.remove('hidden');
                     document.getElementById('formattedContent').classList.add('hidden');
