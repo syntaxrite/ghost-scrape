@@ -7,6 +7,8 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+await supabase.from("otp_codes").delete().eq("email", email);
+
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {

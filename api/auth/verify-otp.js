@@ -57,14 +57,33 @@ module.exports = async (req, res) => {
       user = createdUser;
     }
 
-    const apiKey = generateApiKey();
+    // check if API key already exists
+const { data: existingKey } = await supabase
+  .from("api_keys")
+  .select("*")
+  .eq("user_id", user.id)
+  .maybeSingle();
 
-    await supabase.from("api_keys").delete().eq("user_id", user.id);
+if (existingKey) {
+  await supabase.from("otp_codes").delete().eq("id", otpRow.id);
 
-    const { error: keyError } = await supabase.from("api_keys").insert({
-      user_id: user.id,
-      key: apiKey
-    });
+  return res.status(200).json({
+    success: true,
+    apiKey: existingKey.key
+  });
+}
+
+// otherwise create new key
+const apiKey = generateApiKey();
+
+const { error: keyError } = await supabase.from("api_keys").insert({
+  user_id: user.id,
+  key: apiKey
+});
+
+if (keyError) {
+  return res.status(500).json({ success: false, error: "API key creation failed" });
+}
 
     if (keyError) {
       return res.status(500).json({ success: false, error: "API key creation failed" });
