@@ -1,5 +1,7 @@
 const { fetchSmart, getDomain, getSiteType, isHomepage, shouldRetry, getWordCount } = require("../lib/engine");
 const { runExtractor } = require("../lib/extractors");
+const { cleanMarkdown } = require("../lib/utils"); // Added this
+// ... rest of the code
 const TurndownService = require("turndown");
 const { gfm } = require("turndown-plugin-gfm");
 
