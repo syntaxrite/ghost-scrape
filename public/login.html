@@ -52,6 +52,7 @@
                 });
 
                 const data = await res.json();
+                console.log("API RESPONSE:", data);
 
                 if (data.success) {
                     document.getElementById("emailStep").classList.add("hidden");
