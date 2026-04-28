@@ -232,7 +232,19 @@
                 `
             );
         }
+        function getUsageLimit() {
+    const apiKey = localStorage.getItem("ghost_api_key");
+    return apiKey ? 3 : 1;
+}
 
+function getUsageCount() {
+    return parseInt(localStorage.getItem("ghost_usage") || "0");
+}
+
+function incrementUsage() {
+    const count = getUsageCount() + 1;
+    localStorage.setItem("ghost_usage", count);
+}
         async function login() {
             try {
                 const email = prompt("Enter your email to get an OTP:");
@@ -310,9 +322,20 @@
         async function handleScrape() {
             const btn = document.getElementById('scrapeBtn');
             const urlInput = document.getElementById('urlInput');
-            const url = urlInput.value;
+            const url = urlInput.value.trim();
             
-            if (!url) return;
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+
+            const limit = getUsageLimit();
+            const used = getUsageCount();
+
+            if (used >= limit) {
+                alert("Usage limit reached. Login to unlock more.");
+                return;
+            }
 
             btn.disabled = true;
             const originalContent = btn.innerHTML;
@@ -328,10 +351,15 @@
                     }
                 );
 
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
                 const data = await response.json();
 
                 if (data.success) {
                     ghostMarkdown = data.markdown || "";
+                    incrementUsage();
                     
                     document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
                     document.getElementById('rawContent').innerText = data.markdown || "";
@@ -355,7 +383,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                alert("Connection lost. Backend unresponsive.");
+                alert(err?.message || "Connection lost. Backend unresponsive.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
@@ -377,9 +405,11 @@
             if (!ghostMarkdown) return;
             const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
             const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
+            const objectUrl = URL.createObjectURL(blob);
+            a.href = objectUrl;
             a.download = `ghost-scrape-${Date.now()}.md`;
             a.click();
+            URL.revokeObjectURL(objectUrl);
         }
     </script>
 </body>
