@@ -11,6 +11,21 @@
     <div class="w-full max-w-md p-8 bg-white/5 rounded-2xl border border-white/10">
         <h1 class="text-3xl font-black mb-6 text-center">Login</h1>
 
+        <!-- ✅ ALREADY LOGGED IN -->
+        <div id="loggedInBox" class="hidden text-center">
+            <p class="text-green-400 font-bold mb-4">✅ Already Logged In</p>
+
+            <div class="bg-black border border-white/10 rounded-xl p-4 text-sm break-all mb-4" id="apiKeyBox"></div>
+
+            <button onclick="copyKey()" class="w-full bg-purple-600 py-2 rounded-xl mb-3">
+                Copy API Key
+            </button>
+
+            <button onclick="logout()" class="w-full bg-red-600 py-2 rounded-xl">
+                Logout
+            </button>
+        </div>
+
         <!-- STEP 1 -->
         <div id="emailStep">
             <input id="email" type="email" placeholder="Enter your email"
@@ -44,6 +59,19 @@
         function normalizeEmail(email) {
             return email.trim().toLowerCase();
         }
+
+        // ✅ CHECK LOGIN STATE ON LOAD
+        window.onload = () => {
+            const apiKey = localStorage.getItem("ghost_api_key");
+
+            if (apiKey) {
+                document.getElementById("emailStep").classList.add("hidden");
+                document.getElementById("otpStep").classList.add("hidden");
+
+                document.getElementById("loggedInBox").classList.remove("hidden");
+                document.getElementById("apiKeyBox").innerText = apiKey;
+            }
+        };
 
         async function requestOTP() {
             const btn = document.getElementById("sendBtn");
@@ -98,7 +126,7 @@
                 const res = await fetch("/api/auth/verify-otp", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, code: otp }) // match backend
+                    body: JSON.stringify({ email, code: otp })
                 });
 
                 const data = await res.json().catch(() => ({}));
@@ -109,8 +137,8 @@
                     setStatus("Login successful!");
 
                     setTimeout(() => {
-                        window.location.href = "/";
-                    }, 800);
+                        location.reload(); // ✅ reload to trigger logged-in UI
+                    }, 500);
 
                 } else {
                     setStatus(data.error || "Invalid OTP");
@@ -122,6 +150,17 @@
             } finally {
                 btn.disabled = false;
             }
+        }
+
+        function copyKey() {
+            const key = localStorage.getItem("ghost_api_key");
+            navigator.clipboard.writeText(key);
+            setStatus("Copied API key!");
+        }
+
+        function logout() {
+            localStorage.removeItem("ghost_api_key");
+            location.reload();
         }
     </script>
 

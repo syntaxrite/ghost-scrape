@@ -3,6 +3,19 @@ const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const { data: existingUser } = await supabase
+  .from("users")
+  .select("id")
+  .eq("email", email)
+  .maybeSingle();
+
+if (existingUser) {
+  return res.status(200).json({
+    success: false,
+    error: "User already registered. Please login with your existing API key."
+  });
+}
+
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
