@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
     const domain = getDomain(url);
 
     // 2. Smart Fetch
-    const { html, source } = await fetchSmart(url);
+    const { html, source, wasBlocked } = await fetchSmart(url);
 
     // 3. Extract Core Content
     const article = extractContent(html, url);
@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
       title: article.title,
       domain,
       source,
+      wasBlocked,
       wordCount,
       markdown
     });

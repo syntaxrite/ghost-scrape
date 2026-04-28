@@ -108,9 +108,11 @@
         <section id="resultArea" class="hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div class="glass rounded-[2.5rem] overflow-hidden border-white/5">
                 <div class="px-8 py-5 border-b border-white/5 flex flex-wrap justify-between items-center bg-white/5 gap-4">
-                    <div class="flex gap-6 text-[10px] mono text-gray-500 uppercase tracking-[0.2em]">
-                        <div>Words: <span id="wordCount" class="text-purple-400">0</span></div>
-                        <div>Source: <span id="sourceType" class="text-purple-400">-</span></div>
+                    <div class="flex flex-col gap-1">
+                        <div class="flex gap-6 text-[10px] mono text-gray-500 uppercase tracking-[0.2em]">
+                            <div>Words: <span id="wordCount" class="text-purple-400">0</span></div>
+                        </div>
+                        <div id="sourceInfo" class="flex items-center gap-2 text-xs"></div>
                     </div>
                     <div class="flex gap-3">
                         <button onclick="toggleView()" id="toggleBtn" class="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 transition-all">
@@ -203,8 +205,12 @@
                     document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
                     document.getElementById('rawContent').innerText = data.markdown;
                     document.getElementById('wordCount').innerText = data.wordCount || 0;
-                    document.getElementById('sourceType').innerText = data.source || "Ghost Engine";
-                    
+                    // Stealth Mode indicator
+                    const stealthBadge = data.wasBlocked
+                        ? `<span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded">Stealth Bypass Used</span>`
+                        : `<span class="bg-green-500/20 text-green-400 text-[10px] px-2 py-1 rounded">Direct Access</span>`;
+                    document.getElementById('sourceInfo').innerHTML = `${data.source || "Ghost Engine"} ${stealthBadge}`;
+
                     isFormattedMode = false;
                     document.getElementById('rawContent').classList.remove('hidden');
                     document.getElementById('formattedContent').classList.add('hidden');
