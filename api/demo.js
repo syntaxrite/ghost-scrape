@@ -3,6 +3,8 @@ const { fetchSmart } = require("../lib/engine");
 const { extractContent } = require("../lib/extractor");
 const { checkUsage, logUsage, DAILY_LIMIT } = require("../lib/usage");
 const supabase = require("../lib/supabase");
+const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+const ip = rawIp.split(",")[0].trim();
 
 // ⚡ simple in-memory burst protection
 const burstCache = {};

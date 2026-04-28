@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard | Ghost Scrape</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-black text-white min-h-screen flex items-center justify-center">
+
+  <div class="w-full max-w-xl p-8 bg-white/5 rounded-2xl border border-white/10">
+
+    <h1 class="text-3xl font-black mb-6 text-center">Dashboard</h1>
+
+    <!-- LOADING -->
+    <div id="loading" class="text-center text-gray-400">
+      Loading...
+    </div>
+
+    <!-- NOT LOGGED IN -->
+    <div id="notLoggedIn" class="hidden text-center">
+      <p class="mb-4 text-gray-400">You are not logged in</p>
+      <a href="/login.html" class="bg-purple-600 px-6 py-3 rounded-xl font-bold hover:bg-purple-500">
+        Login
+      </a>
+    </div>
+
+    <!-- LOGGED IN -->
+    <div id="dashboard" class="hidden space-y-6">
+
+      <div>
+        <p class="text-sm text-gray-400">Email</p>
+        <p id="email" class="text-lg font-bold"></p>
+      </div>
+
+      <div>
+        <p class="text-sm text-gray-400">API Key</p>
+        <div class="flex gap-2">
+          <input id="apiKey" class="w-full p-3 bg-black border border-white/10 rounded-xl" readonly>
+          <button onclick="copyKey()" class="px-4 bg-white text-black rounded-xl font-bold">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p class="text-sm text-gray-400">Usage Today</p>
+        <p id="usage" class="text-2xl font-black"></p>
+      </div>
+
+      <div class="w-full bg-white/10 rounded-full h-3">
+        <div id="usageBar" class="bg-purple-500 h-3 rounded-full transition-all"></div>
+      </div>
+
+      <button onclick="logout()" class="w-full bg-red-600 py-3 rounded-xl font-bold hover:bg-red-500">
+        Logout
+      </button>
+
+    </div>
+
+    <p id="status" class="text-center text-sm text-gray-400 mt-4"></p>
+
+  </div>
+
+<script>
+  const apiKey = localStorage.getItem("ghost_api_key");
+
+  if (!apiKey) {
+    showNotLoggedIn();
+  } else {
+    loadDashboard();
+  }
+
+  function showNotLoggedIn() {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("notLoggedIn").classList.remove("hidden");
+  }
+
+  async function loadDashboard() {
+    try {
+      const res = await fetch("/api/user/stats", {
+        headers: { "x-api-key": apiKey }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        localStorage.removeItem("ghost_api_key");
+        return showNotLoggedIn();
+      }
+
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+
+      document.getElementById("email").innerText = data.email;
+      document.getElementById("apiKey").value = data.apiKey;
+
+      document.getElementById("usage").innerText =
+        `${data.usageToday} / ${data.limit}`;
+
+      const percent = Math.min((data.usageToday / data.limit) * 100, 100);
+      document.getElementById("usageBar").style.width = percent + "%";
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById("status").innerText = "Failed to load dashboard";
+      showNotLoggedIn();
+    }
+  }
+
+  function copyKey() {
+    const key = document.getElementById("apiKey").value;
+    navigator.clipboard.writeText(key);
+    alert("Copied API key");
+  }
+
+  function logout() {
+    localStorage.removeItem("ghost_api_key");
+    window.location.reload();
+  }
+</script>
+
+</body>
+</html>

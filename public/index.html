@@ -61,10 +61,11 @@
             <a href="#" onclick="openPricing(); return false;" class="hover:text-white transition-colors">Pricing</a>
             <a href="#" onclick="openAPI(); return false;" class="hover:text-white transition-colors">API</a>
             <div class="h-4 w-[1px] bg-white/10"></div>
-               <a href="/login.html" class="hover:text-white transition-colors">Login</a>
-            <button onclick="login()" class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
+            <a href="/login.html" id="loginLink" class="hover:text-white transition-colors">Login</a>
+            <a href="/dashboard.html" class="hover:text-white transition-colors">Dashboard</a>
+            <a href="/login.html" class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
                 Join Beta
-            </button>
+            </a>
         </div>
     </nav>
 
@@ -103,7 +104,7 @@
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
             </div>
-            <p class="text-gray-500 text-xs mt-3 text-center">
+            <p id="usageHint" class="text-gray-500 text-xs mt-3 text-center">
                 Demo mode uses limited access. Logged-in users will use their API key automatically.
             </p>
         </section>
@@ -171,7 +172,6 @@
     <script>
         let ghostMarkdown = "";
         let isFormattedMode = false;
-        let apiKey = localStorage.getItem("ghost_api_key") || "";
 
         const testUrls = {
             wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
@@ -200,13 +200,13 @@
                 <div class="space-y-3">
                     <div class="glass rounded-2xl p-4">
                         <div class="font-bold text-white">Free</div>
-                        <div class="text-purple-400 font-black text-xl">20 requests/day</div>
-                        <div class="text-gray-400 mt-1">Demo access, limited usage</div>
+                        <div class="text-purple-400 font-black text-xl">1 UI request</div>
+                        <div class="text-gray-400 mt-1">Demo access for testing</div>
                     </div>
                     <div class="glass rounded-2xl p-4">
-                        <div class="font-bold text-white">Starter</div>
-                        <div class="text-purple-400 font-black text-xl">Coming soon</div>
-                        <div class="text-gray-400 mt-1">API key access, higher limits</div>
+                        <div class="font-bold text-white">Logged In</div>
+                        <div class="text-purple-400 font-black text-xl">3 UI requests + API key</div>
+                        <div class="text-gray-400 mt-1">Beta access for developers</div>
                     </div>
                 </div>
                 `
@@ -214,7 +214,7 @@
         }
 
         function openAPI() {
-            const displayKey = apiKey || "Not logged in";
+            const displayKey = localStorage.getItem("ghost_api_key") || "Not logged in";
             openModal(
                 "API Access",
                 `
@@ -225,74 +225,46 @@
                     </div>
                     <div>
                         <div class="text-gray-400 mb-2">Example request header</div>
-                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-green-300">x-api-key: ${displayKey}</code>
+                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-green-300">x-api-key: YOUR_KEY</code>
                     </div>
-                    <p class="text-gray-400">Use this key to access <code>/api/scrape</code>. Without it, the site falls back to demo mode.</p>
+                    <p class="text-gray-400">Use this key to access <code>/api/demo</code> or your protected API routes.</p>
                 </div>
                 `
             );
         }
+
         function getUsageLimit() {
-    const apiKey = localStorage.getItem("ghost_api_key");
-    return apiKey ? 3 : 1;
-}
+            const apiKey = localStorage.getItem("ghost_api_key");
+            return apiKey ? 3 : 1;
+        }
 
-function getUsageCount() {
-    return parseInt(localStorage.getItem("ghost_usage") || "0");
-}
+        function getUsageCount() {
+            return parseInt(localStorage.getItem("ghost_usage") || "0", 10);
+        }
 
-function incrementUsage() {
-    const count = getUsageCount() + 1;
-    localStorage.setItem("ghost_usage", count);
-}
-        async function login() {
-            try {
-                const email = prompt("Enter your email to get an OTP:");
-                if (!email) return;
+        function incrementUsage() {
+            const count = getUsageCount() + 1;
+            localStorage.setItem("ghost_usage", String(count));
+        }
 
-                const reqRes = await fetch("/api/auth/request-otp", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email })
-                });
+        function updateNavbar() {
+            const key = localStorage.getItem("ghost_api_key");
+            const loginLink = document.getElementById("loginLink");
+            const usageHint = document.getElementById("usageHint");
 
-                const reqData = await reqRes.json();
+            if (key && loginLink) {
+                loginLink.innerText = "Logged In";
+                loginLink.classList.add("text-green-400");
+                if (usageHint) usageHint.innerText = "Logged-in users can use the UI 3 times.";
+            }
+        }
 
-                if (!reqRes.ok || !reqData.success) {
-                    alert(reqData.error || "Failed to request OTP");
-                    return;
-                }
-
-                if (reqData.debug_code) {
-                    alert(`Demo OTP: ${reqData.debug_code}`);
-                }
-
-                const code = prompt("Enter OTP:");
-                if (!code) return;
-
-                const verifyRes = await fetch("/api/auth/verify-otp", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, code })
-                });
-
-                const verifyData = await verifyRes.json();
-
-                if (!verifyRes.ok || !verifyData.success) {
-                    alert(verifyData.error || "OTP verification failed");
-                    return;
-                }
-
-                if (verifyData.apiKey) {
-                    apiKey = verifyData.apiKey;
-                    localStorage.setItem("ghost_api_key", apiKey);
-                    alert("Login successful. API key saved.");
-                } else {
-                    alert("Login successful, but no API key was returned.");
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Login failed.");
+        function updateUsageHint() {
+            const limit = getUsageLimit();
+            const used = getUsageCount();
+            const usageHint = document.getElementById("usageHint");
+            if (usageHint) {
+                usageHint.innerText = `UI usage: ${used}/${limit}`;
             }
         }
 
@@ -342,26 +314,28 @@ function incrementUsage() {
             btn.innerHTML = `<div class="loader"></div>`;
 
             try {
+                const apiKey = localStorage.getItem("ghost_api_key") || "";
                 const endpoint = apiKey ? "/api/scrape" : "/api/demo";
 
                 const response = await fetch(
                     `${endpoint}?url=${encodeURIComponent(url)}`,
                     {
                         headers: {
-                            "x-api-key": localStorage.getItem("ghost_api_key") || ""
+                            "x-api-key": apiKey
                         }
                     }
                 );
 
-                if (!response.ok) {
-                    throw new Error(`Request failed with status ${response.status}`);
-                }
+                const data = await response.json().catch(() => ({}));
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || `Request failed with status ${response.status}`);
+                }
 
                 if (data.success) {
                     ghostMarkdown = data.markdown || "";
                     incrementUsage();
+                    updateUsageHint();
                     
                     document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
                     document.getElementById('rawContent').innerText = data.markdown || "";
@@ -413,6 +387,9 @@ function incrementUsage() {
             a.click();
             URL.revokeObjectURL(objectUrl);
         }
+
+        updateNavbar();
+        updateUsageHint();
     </script>
 </body>
 </html>
