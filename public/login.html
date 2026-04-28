@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Ghost Scrape</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white min-h-screen flex items-center justify-center">
+
+    <div class="w-full max-w-md p-8 bg-white/5 rounded-2xl border border-white/10">
+        <h1 class="text-3xl font-black mb-6 text-center">Login</h1>
+
+        <!-- STEP 1: EMAIL -->
+        <div id="emailStep">
+            <input id="email" type="email" placeholder="Enter your email"
+                class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl outline-none">
+            
+            <button onclick="requestOTP()" 
+                class="w-full bg-purple-600 py-3 rounded-xl font-bold hover:bg-purple-500">
+                Send OTP
+            </button>
+        </div>
+
+        <!-- STEP 2: OTP -->
+        <div id="otpStep" class="hidden">
+            <input id="otp" type="text" placeholder="Enter OTP"
+                class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl outline-none">
+            
+            <button onclick="verifyOTP()" 
+                class="w-full bg-green-600 py-3 rounded-xl font-bold hover:bg-green-500">
+                Verify & Login
+            </button>
+        </div>
+
+        <p id="status" class="text-sm text-gray-400 mt-4 text-center"></p>
+    </div>
+
+    <script>
+        async function requestOTP() {
+            const email = document.getElementById("email").value;
+
+            if (!email) return alert("Enter email");
+
+            document.getElementById("status").innerText = "Sending OTP...";
+
+            try {
+                const res = await fetch("/api/auth/request-otp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById("emailStep").classList.add("hidden");
+                    document.getElementById("otpStep").classList.remove("hidden");
+                    document.getElementById("status").innerText = "OTP sent!";
+                } else {
+                    document.getElementById("status").innerText = "Failed to send OTP";
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById("status").innerText = "Error sending OTP";
+            }
+        }
+
+        async function verifyOTP() {
+            const email = document.getElementById("email").value;
+            const otp = document.getElementById("otp").value;
+
+            if (!otp) return alert("Enter OTP");
+
+            document.getElementById("status").innerText = "Verifying...";
+
+            try {
+                const res = await fetch("/api/auth/verify-otp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, otp })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    // IMPORTANT: store API key or token
+                    localStorage.setItem("ghost_api_key", data.apiKey);
+
+                    document.getElementById("status").innerText = "Login successful!";
+
+                    setTimeout(() => {
+                        window.location.href = "/";
+                    }, 1000);
+
+                } else {
+                    document.getElementById("status").innerText = "Invalid OTP";
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById("status").innerText = "Verification failed";
+            }
+        }
+    </script>
+
+</body>
+</html>

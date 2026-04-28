@@ -1,3 +1,10 @@
+import express from "express";
+import path from "path";
+
+const app = express();
+
+// serve frontend
+app.use(express.static("public"));
 const supabase = require("../lib/supabase");
 
 const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");

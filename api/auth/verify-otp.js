@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
   });
 
   return res.json({
-    success: true,
-    apiKey
-  });
+  "success": true,
+  "apiKey": "user_api_key_here"
+});
 };
