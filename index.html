@@ -15,6 +15,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono&family=Architects+Daughter&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
         :root { --purple: #a855f7; }
@@ -23,7 +24,6 @@
         .hand { font-family: 'Architects Daughter', cursive; }
         .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
         
-        /* Custom Loader */
         .loader { 
             width: 20px; height: 20px; border: 2px solid rgba(168, 85, 247, 0.3);
             border-top-color: var(--purple); border-radius: 50%;
@@ -31,12 +31,22 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Scribble Animation */
         .scribble-path {
             stroke-dasharray: 1000; stroke-dashoffset: 1000;
             animation: draw 2s ease-in-out forwards;
         }
         @keyframes draw { to { stroke-dashoffset: 0; } }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.2); border-radius: 10px; }
+        
+        /* Markdown Preview Styling */
+        #formattedContent h1 { font-size: 2.25rem; font-weight: 900; margin-bottom: 1.5rem; color: white; }
+        #formattedContent h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: #a855f7; }
+        #formattedContent p { margin-bottom: 1.25rem; color: #9ca3af; line-height: 1.75; }
+        #formattedContent ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: #9ca3af; }
     </style>
 </head>
 <body class="min-h-screen">
@@ -50,10 +60,7 @@
         </div>
         
         <div class="hidden md:flex items-center gap-8 text-sm font-bold text-gray-400">
-            <a href="#" class="hover:text-white transition-colors">Pricing</a>
-            <a href="#" class="hover:text-white transition-colors">API</a>
-            <div class="h-4 w-[1px] bg-white/10"></div>
-            <a href="#" class="hover:text-white transition-colors">Login</a>
+            <a href="https://github.com/Ghost-Scrape" target="_blank" class="hover:text-white transition-colors">GitHub</a>
             <button class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
                 Join Beta
             </button>
@@ -77,25 +84,23 @@
             </p>
         </header>
 
+        <div class="mt-8 flex flex-wrap justify-center gap-4 mb-10">
+            <button onclick="quickTest('wiki')" class="px-5 py-2 border-2 border-dashed border-purple-500 rounded-xl hover:bg-purple-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">👻 Wiki</button>
+            <button onclick="quickTest('docs')" class="px-5 py-2 border-2 border-dashed border-blue-500 rounded-xl hover:bg-blue-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">📚 Docs</button>
+            <button onclick="quickTest('blog')" class="px-5 py-2 border-2 border-dashed border-green-500 rounded-xl hover:bg-green-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">📝 Blog</button>
+            <button onclick="quickTest('news')" class="px-5 py-2 border-2 border-dashed border-red-500 rounded-xl hover:bg-red-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">🗞️ News</button>
+        </div>
+
         <section class="max-w-3xl mx-auto mb-20">
             <div class="glass p-2 rounded-3xl flex items-center shadow-2xl focus-within:ring-2 ring-purple-500/40 transition-all">
                 <div class="pl-4 text-gray-500"><i data-lucide="link" class="w-5 h-5"></i></div>
-                <input id="urlInput" type="text" placeholder="https://wikipedia.org/wiki/Ghost..." 
+                <input id="urlInput" type="text" placeholder="https://en.wikipedia.org/wiki/Ghost..." 
                        class="bg-transparent flex-1 p-4 outline-none text-lg">
                 <button id="scrapeBtn" onclick="handleScrape()" 
                         class="bg-purple-600 hover:bg-purple-500 px-10 py-4 rounded-2xl font-black transition-all flex items-center gap-2 disabled:opacity-50">
                     <span>Clean</span>
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
-            </div>
-            
-            <div class="mt-4 flex justify-end">
-                <div class="rotate-6 flex flex-col items-center">
-                    <p class="hand text-purple-400 text-lg">Try a blog link! ✨</p>
-                    <svg width="40" height="40" viewBox="0 0 40 40" class="text-purple-400">
-                        <path d="M10 10 Q 20 5 30 20 T 10 35" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" />
-                    </svg>
-                </div>
             </div>
         </section>
 
@@ -107,6 +112,9 @@
                         <div>Source: <span id="sourceType" class="text-purple-400">-</span></div>
                     </div>
                     <div class="flex gap-3">
+                        <button onclick="toggleView()" id="toggleBtn" class="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 transition-all">
+                            Show Formatted
+                        </button>
                         <button onclick="copyToClipboard()" class="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Copy Content">
                             <i data-lucide="copy" class="w-4 h-4"></i>
                         </button>
@@ -117,7 +125,9 @@
                 </div>
                 <div class="p-10 max-h-[600px] overflow-y-auto custom-scrollbar bg-black/40">
                     <h2 id="articleTitle" class="text-4xl font-black mb-8 text-white leading-tight"></h2>
-                    <div id="markdownOutput" class="mono text-sm text-gray-400 whitespace-pre-wrap leading-relaxed"></div>
+                    
+                    <div id="rawContent" class="mono text-sm text-gray-400 whitespace-pre-wrap leading-relaxed"></div>
+                    <div id="formattedContent" class="hidden prose prose-invert max-w-none"></div>
                 </div>
             </div>
         </section>
@@ -127,22 +137,51 @@
         <p class="text-gray-600 text-xs font-mono mb-4 tracking-widest">
             &copy; 2026 GHOST-SCRAPE.TECH — <span class="text-white">POWERING AI AGENTS</span>
         </p>
-        <div class="flex justify-center gap-6 text-gray-500 text-[10px] uppercase font-bold">
-            <a href="#" class="hover:text-purple-500 transition-colors">Contact</a>
-            <a href="#" class="hover:text-purple-500 transition-colors">Terms</a>
-            <a href="#" class="hover:text-purple-500 transition-colors">GitHub</a>
-        </div>
     </footer>
 
     <script>
-        let currentMarkdown = "";
+        // SINGLE declaration of state variables
+        let ghostMarkdown = "";
+        let isFormattedMode = false;
 
-        // Initialize Lucide Icons
+        const testUrls = {
+            wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
+            docs: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status",
+            blog: "https://overreacted.io/the-wet-codebase/",
+            news: "https://www.nytimes.com/2024/01/01/business/economy/china-economy-2023.html"
+        };
+
+        // Initialize Lucide
         lucide.createIcons();
+
+        function quickTest(type) {
+            document.getElementById('urlInput').value = testUrls[type];
+            handleScrape();
+        }
+
+        function toggleView() {
+            isFormattedMode = !isFormattedMode;
+            const raw = document.getElementById('rawContent');
+            const formatted = document.getElementById('formattedContent');
+            const btn = document.getElementById('toggleBtn');
+
+            if (isFormattedMode) {
+                raw.classList.add('hidden');
+                formatted.classList.remove('hidden');
+                formatted.innerHTML = marked.parse(ghostMarkdown);
+                btn.innerText = "Show Raw Text";
+            } else {
+                raw.classList.remove('hidden');
+                formatted.classList.add('hidden');
+                btn.innerText = "Show Formatted";
+            }
+        }
 
         async function handleScrape() {
             const btn = document.getElementById('scrapeBtn');
-            const url = document.getElementById('urlInput').value;
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value;
+            
             if (!url) return;
 
             btn.disabled = true;
@@ -154,39 +193,48 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    currentMarkdown = data.markdown;
-                    document.getElementById('articleTitle').innerText = data.title;
-                    document.getElementById('markdownOutput').innerText = data.markdown;
-                    document.getElementById('wordCount').innerText = data.wordCount;
-                    document.getElementById('sourceType').innerText = data.source;
-                    document.getElementById('resultArea').classList.remove('hidden');
+                    ghostMarkdown = data.markdown;
                     
-                    // Smooth scroll to result
+                    // Update UI elements
+                    document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
+                    document.getElementById('rawContent').innerText = data.markdown;
+                    document.getElementById('wordCount').innerText = data.wordCount || 0;
+                    document.getElementById('sourceType').innerText = data.source || "Ghost Engine";
+                    
+                    // Reset View State
+                    isFormattedMode = false;
+                    document.getElementById('rawContent').classList.remove('hidden');
+                    document.getElementById('formattedContent').classList.add('hidden');
+                    document.getElementById('toggleBtn').innerText = "Show Formatted";
+
+                    document.getElementById('resultArea').classList.remove('hidden');
                     document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth' });
                 } else {
                     alert("Extraction failed. The ghost couldn't find the data.");
                 }
             } catch (err) {
+                console.error(err);
                 alert("Connection lost. Backend unresponsive.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
-                lucide.createIcons(); // Re-render icons inside button
+                lucide.createIcons();
             }
         }
 
         function copyToClipboard() {
-            navigator.clipboard.writeText(currentMarkdown);
-            // Quick button feedback
+            if (!ghostMarkdown) return;
+            navigator.clipboard.writeText(ghostMarkdown);
             const toast = document.createElement('div');
-            toast.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 bg-purple-600 px-6 py-3 rounded-full text-sm font-bold shadow-2xl animate-bounce';
+            toast.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 bg-purple-600 px-6 py-3 rounded-full text-sm font-bold shadow-2xl z-50';
             toast.innerText = 'Copied to clipboard! 👻';
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 2000);
         }
 
         function downloadMd() {
-            const blob = new Blob([currentMarkdown], { type: "text/markdown" });
+            if (!ghostMarkdown) return;
+            const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
             a.download = `ghost-scrape-${Date.now()}.md`;

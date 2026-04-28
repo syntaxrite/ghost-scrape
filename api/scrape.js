@@ -1,54 +1,38 @@
 const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
-const { getDomain, getSiteType, fetchSmart, shouldRetry } = require("../lib/engine");
-const { extractGeneric } = require("../lib/extractor");
+const { getDomain, fetchSmart } = require("../lib/engine");
+const { extractContent } = require("../lib/extractor");
 
 module.exports = async (req, res) => {
-  let { url, mode } = req.query;
-  
+  let { url } = req.query;
+
   try {
+    // 1. Prepare
     url = normalizeUrl(url);
     const domain = getDomain(url);
-    const siteType = getSiteType(domain);
 
-    // 1. Initial Fetch
-    let { html, source } = await fetchSmart(url, mode === "browser");
+    // 2. Smart Fetch
+    const { html, source } = await fetchSmart(url);
 
-    // 2. Extraction
-    let article = extractGeneric(html, url);
-    let wordCount = getWordCount(article?.textContent);
+    // 3. Extract Core Content
+    const article = extractContent(html, url);
+    if (!article) return res.status(422).json({ success: false, error: "Content unreadable" });
 
-    // 3. Smart Retry (If content is thin, try Browserless)
-    if (shouldRetry(article, source, wordCount)) {
-      const retry = await fetchSmart(url, true);
-      const retryArticle = extractGeneric(retry.html, url);
-      const retryCount = getWordCount(retryArticle?.textContent);
+    // 4. Convert to LLM-ready Markdown
+    let markdown = turndown.turndown(article.content);
+    markdown = cleanMarkdown(markdown);
 
-      if (retryCount > wordCount) {
-        article = retryArticle;
-        source = "browserless-retry";
-        wordCount = retryCount;
-      }
-    }
-
-    if (!article || !article.content) {
-      return res.status(422).json({ success: false, error: "Failed to extract content" });
-    }
-
-    // 4. Final Formatting for LLM
-    const markdown = cleanMarkdown(turndown.turndown(article.content));
+    const wordCount = getWordCount(article.text);
 
     return res.status(200).json({
       success: true,
       title: article.title,
       domain,
-      siteType,
-      wordCount,
       source,
+      wordCount,
       markdown
     });
 
   } catch (err) {
-    console.error("Scrape Error:", err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 };
