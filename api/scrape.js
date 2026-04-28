@@ -45,6 +45,44 @@ module.exports = async (req, res) => {
       endpoint: "/api/scrape"
     });
 
+    // -----------------------------
+    // Quota logic (daily limits)
+    // -----------------------------
+    const today = new Date().toISOString().split("T")[0];
+
+    // reset if new day
+    if (user.last_reset !== today) {
+      await supabase
+        .from("users")
+        .update({
+          requests_today: 0,
+          last_reset: today
+        })
+        .eq("id", user.user_id);
+    }
+
+    // refresh user data
+    const { data: freshUser } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", user.user_id)
+      .single();
+
+    // LIMIT RULES
+    const LIMITS = {
+      free: 20,
+      pro: 1000
+    };
+
+    const limit = LIMITS[freshUser.plan] || 20;
+
+    if (freshUser.requests_today >= limit) {
+      return res.status(429).json({
+        success: false,
+        error: "Daily limit reached. Upgrade plan."
+      });
+    }
+
     // 2. GET URL
     // -----------------------------
     let { url } = req.query;
@@ -81,6 +119,14 @@ module.exports = async (req, res) => {
     // -----------------------------
     // 4. RESPONSE
     // -----------------------------
+    // Increment usage before response
+    await supabase
+      .from("users")
+      .update({
+        requests_today: freshUser.requests_today + 1
+      })
+      .eq("id", user.user_id);
+
     return res.status(200).json({
       success: true,
       title: article.title,

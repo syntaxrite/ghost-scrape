@@ -58,11 +58,11 @@
         </div>
         
         <div class="hidden md:flex items-center gap-8 text-sm font-bold text-gray-400">
-            <a href="#" class="hover:text-white transition-colors">Pricing</a>
-            <a href="#" class="hover:text-white transition-colors">API</a>
+            <a href="#" onclick="openPricing(); return false;" class="hover:text-white transition-colors">Pricing</a>
+            <a href="#" onclick="openAPI(); return false;" class="hover:text-white transition-colors">API</a>
             <div class="h-4 w-[1px] bg-white/10"></div>
-            <a href="#" class="hover:text-white transition-colors">Login</a>
-            <button class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
+            <a href="#" onclick="login(); return false;" class="hover:text-white transition-colors">Login</a>
+            <button onclick="login()" class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
                 Join Beta
             </button>
         </div>
@@ -103,6 +103,9 @@
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
             </div>
+            <p class="text-gray-500 text-xs mt-3 text-center">
+                Demo mode uses limited access. Logged-in users will use their API key automatically.
+            </p>
         </section>
 
         <section id="resultArea" class="hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -138,7 +141,7 @@
 
     <footer class="mt-20 py-12 border-t border-white/5 text-center">
         <div class="flex justify-center gap-6 text-gray-500 text-[10px] uppercase font-bold mb-6 tracking-widest">
-            <a href="#" class="hover:text-purple-500 transition-colors">Contact</a>
+            <a href="#" onclick="openPricing(); return false;" class="hover:text-purple-500 transition-colors">Contact</a>
             <a href="https://github.com/Ghost-Scrape/Ghost-Scrape.io" target="_blank" class="hover:text-purple-400 transition-colors flex items-center gap-1">
                 <i data-lucide="github" class="w-4 h-4"></i> GitHub
             </a>
@@ -148,9 +151,27 @@
         </p>
     </footer>
 
+    <div id="modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
+        <div class="glass w-full max-w-lg rounded-3xl p-6 md:p-8 border-white/10 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="modalTitle" class="text-2xl font-black tracking-tight"></h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="modalBody" class="text-gray-300 text-sm leading-7"></div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm font-bold">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let ghostMarkdown = "";
         let isFormattedMode = false;
+        let apiKey = localStorage.getItem("ghost_api_key") || "";
 
         const testUrls = {
             wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
@@ -160,6 +181,108 @@
         };
 
         lucide.createIcons();
+
+        function openModal(title, body) {
+            document.getElementById("modalTitle").innerText = title;
+            document.getElementById("modalBody").innerHTML = body;
+            document.getElementById("modal").classList.remove("hidden");
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById("modal").classList.add("hidden");
+        }
+
+        function openPricing() {
+            openModal(
+                "Pricing",
+                `
+                <div class="space-y-3">
+                    <div class="glass rounded-2xl p-4">
+                        <div class="font-bold text-white">Free</div>
+                        <div class="text-purple-400 font-black text-xl">20 requests/day</div>
+                        <div class="text-gray-400 mt-1">Demo access, limited usage</div>
+                    </div>
+                    <div class="glass rounded-2xl p-4">
+                        <div class="font-bold text-white">Starter</div>
+                        <div class="text-purple-400 font-black text-xl">Coming soon</div>
+                        <div class="text-gray-400 mt-1">API key access, higher limits</div>
+                    </div>
+                </div>
+                `
+            );
+        }
+
+        function openAPI() {
+            const displayKey = apiKey || "Not logged in";
+            openModal(
+                "API Access",
+                `
+                <div class="space-y-4">
+                    <div>
+                        <div class="text-gray-400 mb-2">Your API key</div>
+                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-purple-300">${displayKey}</code>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 mb-2">Example request header</div>
+                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-green-300">x-api-key: ${displayKey}</code>
+                    </div>
+                    <p class="text-gray-400">Use this key to access <code>/api/scrape</code>. Without it, the site falls back to demo mode.</p>
+                </div>
+                `
+            );
+        }
+
+        async function login() {
+            try {
+                const email = prompt("Enter your email to get an OTP:");
+                if (!email) return;
+
+                const reqRes = await fetch("/api/auth/request-otp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+
+                const reqData = await reqRes.json();
+
+                if (!reqRes.ok || !reqData.success) {
+                    alert(reqData.error || "Failed to request OTP");
+                    return;
+                }
+
+                if (reqData.debug_code) {
+                    alert(`Demo OTP: ${reqData.debug_code}`);
+                }
+
+                const code = prompt("Enter OTP:");
+                if (!code) return;
+
+                const verifyRes = await fetch("/api/auth/verify-otp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, code })
+                });
+
+                const verifyData = await verifyRes.json();
+
+                if (!verifyRes.ok || !verifyData.success) {
+                    alert(verifyData.error || "OTP verification failed");
+                    return;
+                }
+
+                if (verifyData.apiKey) {
+                    apiKey = verifyData.apiKey;
+                    localStorage.setItem("ghost_api_key", apiKey);
+                    alert("Login successful. API key saved.");
+                } else {
+                    alert("Login successful, but no API key was returned.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Login failed.");
+            }
+        }
 
         function quickTest(type) {
             document.getElementById('urlInput').value = testUrls[type];
@@ -196,19 +319,28 @@
             btn.innerHTML = `<div class="loader"></div>`;
 
             try {
-                const response = await fetch(`/api/demo?url=${encodeURIComponent(url)}`);
+                const endpoint = apiKey ? "/api/scrape" : "/api/demo";
+
+                const response = await fetch(
+                    `${endpoint}?url=${encodeURIComponent(url)}`,
+                    {
+                        headers: apiKey ? { "x-api-key": apiKey } : {}
+                    }
+                );
+
                 const data = await response.json();
 
                 if (data.success) {
-                    ghostMarkdown = data.markdown;
+                    ghostMarkdown = data.markdown || "";
                     
                     document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
-                    document.getElementById('rawContent').innerText = data.markdown;
+                    document.getElementById('rawContent').innerText = data.markdown || "";
                     document.getElementById('wordCount').innerText = data.wordCount || 0;
-                    // Stealth Mode indicator
+
                     const stealthBadge = data.wasBlocked
                         ? `<span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded">Stealth Bypass Used</span>`
                         : `<span class="bg-green-500/20 text-green-400 text-[10px] px-2 py-1 rounded">Direct Access</span>`;
+
                     document.getElementById('sourceInfo').innerHTML = `${data.source || "Ghost Engine"} ${stealthBadge}`;
 
                     isFormattedMode = false;
@@ -219,7 +351,7 @@
                     document.getElementById('resultArea').classList.remove('hidden');
                     document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    alert("Extraction failed. The ghost couldn't find the data.");
+                    alert(data.error || "Extraction failed. The ghost couldn't find the data.");
                 }
             } catch (err) {
                 console.error(err);
