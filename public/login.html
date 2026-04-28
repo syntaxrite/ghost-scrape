@@ -11,23 +11,23 @@
     <div class="w-full max-w-md p-8 bg-white/5 rounded-2xl border border-white/10">
         <h1 class="text-3xl font-black mb-6 text-center">Login</h1>
 
-        <!-- STEP 1: EMAIL -->
+        <!-- STEP 1 -->
         <div id="emailStep">
             <input id="email" type="email" placeholder="Enter your email"
                 class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl outline-none">
             
-            <button onclick="requestOTP()" 
+            <button id="sendBtn" onclick="requestOTP()" 
                 class="w-full bg-purple-600 py-3 rounded-xl font-bold hover:bg-purple-500">
                 Send OTP
             </button>
         </div>
 
-        <!-- STEP 2: OTP -->
+        <!-- STEP 2 -->
         <div id="otpStep" class="hidden">
             <input id="otp" type="text" placeholder="Enter OTP"
                 class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl outline-none">
             
-            <button onclick="verifyOTP()" 
+            <button id="verifyBtn" onclick="verifyOTP()" 
                 class="w-full bg-green-600 py-3 rounded-xl font-bold hover:bg-green-500">
                 Verify & Login
             </button>
@@ -37,12 +37,24 @@
     </div>
 
     <script>
+        function setStatus(msg) {
+            document.getElementById("status").innerText = msg;
+        }
+
+        function normalizeEmail(email) {
+            return email.trim().toLowerCase();
+        }
+
         async function requestOTP() {
-            const email = document.getElementById("email").value;
+            const btn = document.getElementById("sendBtn");
+            let email = document.getElementById("email").value;
+
+            email = normalizeEmail(email);
 
             if (!email) return alert("Enter email");
 
-            document.getElementById("status").innerText = "Sending OTP...";
+            btn.disabled = true;
+            setStatus("Sending OTP...");
 
             try {
                 const res = await fetch("/api/auth/request-otp", {
@@ -51,55 +63,64 @@
                     body: JSON.stringify({ email })
                 });
 
-                const data = await res.json();
-                console.log("API RESPONSE:", data);
+                const data = await res.json().catch(() => ({}));
 
-                if (data.success) {
+                if (res.ok && data.success) {
                     document.getElementById("emailStep").classList.add("hidden");
                     document.getElementById("otpStep").classList.remove("hidden");
-                    document.getElementById("status").innerText = "OTP sent!";
+                    setStatus("OTP sent! Check your inbox.");
                 } else {
-                    document.getElementById("status").innerText = "Failed to send OTP";
+                    setStatus(data.error || "Failed to send OTP");
                 }
+
             } catch (err) {
                 console.error(err);
-                document.getElementById("status").innerText = "Error sending OTP";
+                setStatus("Network error");
+            } finally {
+                btn.disabled = false;
             }
         }
 
         async function verifyOTP() {
-            const email = document.getElementById("email").value;
-            const otp = document.getElementById("otp").value;
+            const btn = document.getElementById("verifyBtn");
+            let email = document.getElementById("email").value;
+            let otp = document.getElementById("otp").value;
+
+            email = normalizeEmail(email);
+            otp = otp.trim();
 
             if (!otp) return alert("Enter OTP");
 
-            document.getElementById("status").innerText = "Verifying...";
+            btn.disabled = true;
+            setStatus("Verifying...");
 
             try {
                 const res = await fetch("/api/auth/verify-otp", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, otp })
+                    body: JSON.stringify({ email, code: otp }) // match backend
                 });
 
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
 
-                if (data.success) {
-                    // IMPORTANT: store API key or token
+                if (res.ok && data.success) {
                     localStorage.setItem("ghost_api_key", data.apiKey);
 
-                    document.getElementById("status").innerText = "Login successful!";
+                    setStatus("Login successful!");
 
                     setTimeout(() => {
                         window.location.href = "/";
-                    }, 1000);
+                    }, 800);
 
                 } else {
-                    document.getElementById("status").innerText = "Invalid OTP";
+                    setStatus(data.error || "Invalid OTP");
                 }
+
             } catch (err) {
                 console.error(err);
-                document.getElementById("status").innerText = "Verification failed";
+                setStatus("Verification failed");
+            } finally {
+                btn.disabled = false;
             }
         }
     </script>
