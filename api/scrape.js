@@ -1,3 +1,10 @@
+console.log("SCRAPE START");
+console.log("ENV CHECK:", {
+  SUPABASE: !!process.env.SUPABASE_URL,
+  KEY: !!process.env.SUPABASE_KEY,
+  BROWSERLESS: !!process.env.BROWSERLESS_TOKEN
+});
+
 const supabase = require("../lib/supabase");
 
 const {
