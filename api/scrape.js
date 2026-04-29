@@ -4,18 +4,21 @@ const {
   normalizeUrl,
   getWordCount,
   cleanMarkdown,
-  turndown,
+  turndown
 } = require("../lib/utils");
 
 const {
   getDomain,
-  fetchSmart,
+  fetchSmart
 } = require("../lib/engine");
 
 const {
-  extractContent,
+  extractContent
 } = require("../lib/extractor");
 
+// -----------------------------
+// Validate API Key
+// -----------------------------
 async function validateKey(key) {
   const { data, error } = await supabase
     .from("api_keys")
@@ -27,31 +30,40 @@ async function validateKey(key) {
   return data;
 }
 
-function getApiKeyFromHeader(req) {
-  const raw =
-    req.headers.authorization ||
-    req.headers.Authorization ||
-    "";
+// -----------------------------
+// Extract Bearer Token Safely
+// -----------------------------
+function getApiKey(req) {
+  const auth =
+    req.headers?.authorization ||
+    req.headers?.Authorization;
 
-  const value = String(raw).trim();
+  if (!auth) return null;
 
-  if (!value) return null;
-
-  if (/^bearer\s+/i.test(value)) {
-    return value.replace(/^bearer\s+/i, "").trim();
+  if (auth.startsWith("Bearer ")) {
+    return auth.slice(7).trim();
   }
 
-  return value;
+  return auth.trim();
 }
 
+// -----------------------------
+// MAIN HANDLER (Vercel Serverless)
+// -----------------------------
 module.exports = async (req, res) => {
   try {
-    const apiKey = getApiKeyFromHeader(req);
+    // 🔍 DEBUG (IMPORTANT - keep for now)
+    console.log("HEADERS:", req.headers);
+
+    // =============================
+    // 1. AUTH
+    // =============================
+    const apiKey = getApiKey(req);
 
     if (!apiKey) {
       return res.status(401).json({
         success: false,
-        error: "API key required",
+        error: "API key required"
       });
     }
 
@@ -60,118 +72,66 @@ module.exports = async (req, res) => {
     if (!keyRow) {
       return res.status(403).json({
         success: false,
-        error: "Invalid API key",
+        error: "Invalid API key"
       });
     }
 
     const userId = keyRow.user_id;
+
     if (!userId) {
       return res.status(500).json({
         success: false,
-        error: "API key is not linked to a user",
+        error: "API key not linked to user"
       });
     }
 
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (userError || !userRow) {
-      return res.status(403).json({
-        success: false,
-        error: "User not found",
-      });
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-
-    if (userRow.last_reset !== today) {
-      const { error: resetError } = await supabase
-        .from("users")
-        .update({
-          requests_today: 0,
-          last_reset: today,
-        })
-        .eq("id", userId);
-
-      if (resetError) {
-        return res.status(500).json({
-          success: false,
-          error: "Failed to reset usage",
-        });
-      }
-
-      userRow.requests_today = 0;
-      userRow.last_reset = today;
-    }
-
-    const LIMITS = {
-      free: 20,
-      pro: 1000,
-    };
-
-    const plan = String(userRow.plan || "free").toLowerCase();
-    const limit = LIMITS[plan] ?? LIMITS.free;
-
-    if ((userRow.requests_today || 0) >= limit) {
-      return res.status(429).json({
-        success: false,
-        error: "Daily limit reached",
-      });
-    }
-
-    const url = req.body?.url || req.query?.url;
+    // =============================
+    // 2. URL INPUT (SERVERLESS SAFE)
+    // =============================
+    let url =
+      req.body?.url ||
+      req.query?.url;
 
     if (!url) {
       return res.status(400).json({
         success: false,
-        error: "URL required",
+        error: "URL required"
       });
     }
 
-    const normalizedUrl = normalizeUrl(url);
-    const domain = getDomain(normalizedUrl);
+    url = normalizeUrl(url);
+    const domain = getDomain(url);
 
-    const { html, source, wasBlocked } = await fetchSmart(normalizedUrl);
+    // =============================
+    // 3. SCRAPE ENGINE (Browserless safe)
+    // =============================
+    const { html, source, wasBlocked } = await fetchSmart(url);
 
-    const article = extractContent(html, normalizedUrl);
+    const article = extractContent(html, url);
 
-    if (!article || !article.content) {
+    if (!article?.content) {
       return res.status(422).json({
         success: false,
-        error: "Content unreadable",
+        error: "Content unreadable"
       });
     }
 
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
-    const wordCount = getWordCount(article.text || article.content || "");
+    const wordCount = getWordCount(article.text || article.content);
 
-    const { error: usageError } = await supabase
-      .from("usage_logs")
-      .insert({
-        user_id: userId,
-        endpoint: "/api/scrape",
-      });
+    // =============================
+    // 4. LOG USAGE (non-blocking)
+    // =============================
+    supabase.from("usage_logs").insert({
+      user_id: userId,
+      endpoint: "/api/scrape"
+    }).then().catch(console.error);
 
-    if (usageError) {
-      console.error("Usage log error:", usageError.message);
-    }
-
-    const { error: incrementError } = await supabase
-      .from("users")
-      .update({
-        requests_today: (userRow.requests_today || 0) + 1,
-      })
-      .eq("id", userId);
-
-    if (incrementError) {
-      console.error("Usage increment error:", incrementError.message);
-    }
-
+    // =============================
+    // 5. RESPONSE
+    // =============================
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
@@ -179,13 +139,15 @@ module.exports = async (req, res) => {
       source,
       wasBlocked: !!wasBlocked,
       wordCount,
-      markdown,
+      markdown
     });
+
   } catch (err) {
     console.error("SCRAPE ERROR:", err);
+
     return res.status(500).json({
       success: false,
-      error: err.message || "Internal server error",
+      error: err.message || "Internal server error"
     });
   }
 };

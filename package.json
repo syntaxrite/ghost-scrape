@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/package.json",
   "name": "ghost-scrape-api",
   "version": "1.0.0",
   "main": "api/index.js",
@@ -9,7 +8,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.4.4",
     "@supabase/supabase-js": "^2.105.1",
-    "@upstash/redis": "^1.37.0",
+    "@upstash/redis": "^1.37.0",  
     "axios": "^1.15.2",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
