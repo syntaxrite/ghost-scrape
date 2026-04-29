@@ -20,6 +20,8 @@ const {
 // Validate API Key
 // -----------------------------
 async function validateKey(key) {
+  if (!key) return null;
+
   const { data, error } = await supabase
     .from("api_keys")
     .select("*")
@@ -31,12 +33,13 @@ async function validateKey(key) {
 }
 
 // -----------------------------
-// Extract Bearer Token Safely
+// Extract API key safely
 // -----------------------------
 function getApiKey(req) {
   const auth =
     req.headers?.authorization ||
-    req.headers?.Authorization;
+    req.headers?.Authorization ||
+    req.headers?.["x-api-key"];
 
   if (!auth) return null;
 
@@ -48,11 +51,11 @@ function getApiKey(req) {
 }
 
 // -----------------------------
-// MAIN HANDLER (Vercel Serverless)
+// MAIN HANDLER
 // -----------------------------
 module.exports = async (req, res) => {
   try {
-    // 🔍 DEBUG (IMPORTANT - keep for now)
+    // DEBUG (keep for now)
     console.log("HEADERS:", req.headers);
 
     // =============================
@@ -67,30 +70,28 @@ module.exports = async (req, res) => {
       });
     }
 
-    const keyRow = await validateKey(apiKey);
+    const user = await validateKey(apiKey);
 
-    if (!keyRow) {
+    if (!user) {
       return res.status(403).json({
         success: false,
         error: "Invalid API key"
       });
     }
 
-    const userId = keyRow.user_id;
+    const userId = user.user_id;
 
     if (!userId) {
       return res.status(500).json({
         success: false,
-        error: "API key not linked to user"
+        error: "User not linked to API key"
       });
     }
 
     // =============================
-    // 2. URL INPUT (SERVERLESS SAFE)
+    // 2. INPUT URL
     // =============================
-    let url =
-      req.body?.url ||
-      req.query?.url;
+    const url = req.body?.url || req.query?.url;
 
     if (!url) {
       return res.status(400).json({
@@ -99,15 +100,15 @@ module.exports = async (req, res) => {
       });
     }
 
-    url = normalizeUrl(url);
-    const domain = getDomain(url);
+    const normalized = normalizeUrl(url);
+    const domain = getDomain(normalized);
 
     // =============================
-    // 3. SCRAPE ENGINE (Browserless safe)
+    // 3. SCRAPE
     // =============================
-    const { html, source, wasBlocked } = await fetchSmart(url);
+    const { html, source, wasBlocked } = await fetchSmart(normalized);
 
-    const article = extractContent(html, url);
+    const article = extractContent(html, normalized);
 
     if (!article?.content) {
       return res.status(422).json({
@@ -127,7 +128,7 @@ module.exports = async (req, res) => {
     supabase.from("usage_logs").insert({
       user_id: userId,
       endpoint: "/api/scrape"
-    }).then().catch(console.error);
+    }).catch(() => {});
 
     // =============================
     // 5. RESPONSE
@@ -147,7 +148,7 @@ module.exports = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: err.message || "Internal server error"
+      error: err.message || "Server error"
     });
   }
 };
