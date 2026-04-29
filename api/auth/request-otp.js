@@ -1,3 +1,11 @@
+res.setHeader("Access-Control-Allow-Origin", "*");
+res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
+res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+if (req.method === "OPTIONS") {
+  return res.status(200).end();
+}
+
 const supabase = require("../../lib/supabase");
 const { Resend } = require("resend");
 
