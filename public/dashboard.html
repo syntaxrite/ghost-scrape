@@ -78,9 +78,10 @@
 
   async function loadDashboard() {
     try {
-      const res = await fetch("/api/user/stats", {
-        headers: { "x-api-key": apiKey }
-      });
+        const API_BASE = "https://ghost-scrape.tech";
+        const res = await fetch(`${API_BASE}/api/user/stats`, {
+          headers: { "x-api-key": apiKey }
+        });
 
       const data = await res.json();
 

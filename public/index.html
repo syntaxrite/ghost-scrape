@@ -318,11 +318,11 @@
             btn.innerHTML = `<div class="loader"></div>`;
 
             try {
+                const API_BASE = "https://ghost-scrape.tech";
                 const apiKey = localStorage.getItem("ghost_api_key") || "";
                 const endpoint = apiKey ? "/api/scrape" : "/api/demo";
-
                 const response = await fetch(
-                    `${endpoint}?url=${encodeURIComponent(url)}`,
+                    `${API_BASE}${endpoint}?url=${encodeURIComponent(url)}`,
                     {
                         headers: {
                             "x-api-key": apiKey
