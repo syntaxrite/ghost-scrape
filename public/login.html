@@ -120,7 +120,14 @@ async function verifyOTP() {
         body: JSON.stringify({ email, code: otp })
     });
 
-    const data = await res.json();
+    let data;
+
+try {
+  data = await response.json();
+} catch {
+  const text = await response.text();
+  throw new Error(text || "Invalid server response");
+}
 
     if (res.ok && data.success) {
         localStorage.setItem("ghost_api_key", data.apiKey);

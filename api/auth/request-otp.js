@@ -1,74 +1,70 @@
-res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
-res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
-
 const supabase = require("../../lib/supabase");
-const { Resend } = require("resend");
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
 
 module.exports = async (req, res) => {
+  // =============================
+  // CORS
+  // =============================
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ success: false, error: "Method not allowed" });
+    // =============================
+    // Parse body safely
+    // =============================
+    let body = {};
+
+    if (typeof req.body === "object") {
+      body = req.body;
+    } else if (typeof req.body === "string") {
+      try {
+        body = JSON.parse(req.body);
+      } catch {}
     }
 
-    const { email } = req.body;
+    const email = body.email;
 
     if (!email) {
-      return res.status(400).json({ success: false, error: "Email required" });
+      return res.status(400).json({
+        success: false,
+        error: "Email required"
+      });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // 🔥 optional but recommended: delete previous OTPs
-    await supabase
-      .from("otp_codes")
-      .delete()
-      .eq("email", normalizedEmail);
-
-    const code = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    const { error: insertError } = await supabase.from("otp_codes").insert({
-      email: normalizedEmail,
-      code,
-      expires_at: expiresAt.toISOString(),
+    // =============================
+    // Send OTP (Supabase)
+    // =============================
+    const { error } = await supabase.auth.signInWithOtp({
+      email
     });
 
-    if (insertError) {
-      return res.status(500).json({ success: false, error: "Failed to store OTP" });
+    if (error) {
+      console.error("OTP ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
 
-    await resend.emails.send({
-      from: "Ghost Scrape <no-reply@ghost-scrape.tech>",
-      to: normalizedEmail,
-      subject: "Your OTP - Ghost Scrape",
-      html: `
-        <h2>Your OTP</h2>
-        <p><strong>${code}</strong></p>
-        <p>This code expires in 10 minutes.</p>
-      `,
-    });
-
+    // =============================
+    // SUCCESS
+    // =============================
     return res.status(200).json({
       success: true,
-      message: "OTP sent successfully",
+      message: "OTP sent"
     });
 
   } catch (err) {
-    console.error("OTP request error:", err);
+    console.error("REQUEST OTP ERROR:", err);
+
     return res.status(500).json({
       success: false,
-      error: "Server error",
+      error: err.message || "Server error"
     });
   }
 };
