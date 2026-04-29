@@ -31,6 +31,28 @@ async function validateKey(key) {
   return data || null;
 }
 
+function handleEmailClick(e) {
+    const email = "support@ghost-scrape.tech";
+    const subject = "Ghost Scrape Support Request";
+    const body = `Hey Ghost Team,
+
+Problem:
+
+URL:
+
+Thanks!`;
+
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Try opening mail app
+    window.location.href = mailto;
+
+    // Fallback (copy email)
+    setTimeout(() => {
+        navigator.clipboard.writeText(email);
+        alert("Couldn't open mail app. Email copied: " + email);
+    }, 1000);
+}
 // -----------------------------
 // Extract API key safely
 // -----------------------------
