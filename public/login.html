@@ -51,7 +51,7 @@
 
 <script>
 
-const API_BASE = "https://ghost-scrape.tech";
+const API_BASE = "";
 const apiKey = localStorage.getItem("ghost_api_key");
 
 window.onload = async () => {
@@ -59,7 +59,7 @@ window.onload = async () => {
 
     //  VERIFY KEY WITH BACKEND
     try {
-        const res = await fetch(`${API_BASE}/api/user/stats`, {
+        const res = await fetch(`/api/user/stats`, {
             headers: { "x-api-key": apiKey }
         });
 
@@ -89,7 +89,7 @@ async function requestOTP() {
 
     setStatus("Sending OTP...");
 
-    const res = await fetch(`${API_BASE}/api/auth/request-otp`, {
+    const res = await fetch(`/api/auth/request-otp`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ email })
@@ -114,7 +114,7 @@ async function verifyOTP() {
 
     setStatus("Verifying...");
 
-    const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+    const res = await fetch(`/api/auth/verify-otp`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ email, code: otp })

@@ -1,11 +1,3 @@
-res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
-res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
-
 const supabase = require("../lib/supabase");
 
 const {
@@ -30,37 +22,20 @@ const {
 async function validateKey(key) {
   if (!key) return null;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("api_keys")
     .select("*")
     .eq("key", key)
     .maybeSingle();
 
+  if (error) {
+    console.error("API KEY ERROR:", error);
+    return null;
+  }
+
   return data || null;
 }
 
-function handleEmailClick(e) {
-    const email = "support@ghost-scrape.tech";
-    const subject = "Ghost Scrape Support Request";
-    const body = `Hey Ghost Team,
-
-Problem:
-
-URL:
-
-Thanks!`;
-
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    // Try opening mail app
-    window.location.href = mailto;
-
-    // Fallback (copy email)
-    setTimeout(() => {
-        navigator.clipboard.writeText(email);
-        alert("Couldn't open mail app. Email copied: " + email);
-    }, 1000);
-}
 // -----------------------------
 // Extract API key safely
 // -----------------------------
@@ -83,9 +58,24 @@ function getApiKey(req) {
 // MAIN HANDLER
 // -----------------------------
 module.exports = async (req, res) => {
+  // =============================
+  // CORS (CRITICAL FIX)
+  // =============================
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   try {
-    console.log("SCRAPE START");
-    console.log("HEADERS:", req.headers);
+    console.log({
+      event: "SCRAPE_START",
+      method: req.method,
+      origin: req.headers.origin
+    });
 
     // =============================
     // 1. AUTH
@@ -122,12 +112,14 @@ module.exports = async (req, res) => {
     // =============================
     let body = {};
 
-    try {
-      body = typeof req.body === "object"
-        ? req.body
-        : JSON.parse(req.body || "{}");
-    } catch {
-      body = {};
+    if (req.body && typeof req.body === "object") {
+      body = req.body;
+    } else if (typeof req.body === "string") {
+      try {
+        body = JSON.parse(req.body);
+      } catch {
+        body = {};
+      }
     }
 
     const url = body.url || req.query?.url;
@@ -143,11 +135,31 @@ module.exports = async (req, res) => {
     const domain = getDomain(normalized);
 
     // =============================
-    // 3. SCRAPE
+    // 3. SCRAPE (WITH TIMEOUT)
     // =============================
-    const { html, source, wasBlocked } = await fetchSmart(normalized);
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Scrape timeout")), 10000)
+    );
 
-    const article = extractContent(html, normalized);
+    const { html, source, wasBlocked } = await Promise.race([
+      fetchSmart(normalized),
+      timeout
+    ]);
+
+    // =============================
+    // 4. EXTRACT CONTENT (SAFE)
+    // =============================
+    let article;
+
+    try {
+      article = extractContent(html, normalized);
+    } catch (err) {
+      console.error("EXTRACT ERROR:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Extraction failed"
+      });
+    }
 
     if (!article?.content) {
       return res.status(422).json({
@@ -156,13 +168,16 @@ module.exports = async (req, res) => {
       });
     }
 
+    // =============================
+    // 5. CONVERT TO MARKDOWN
+    // =============================
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
     const wordCount = getWordCount(article.text || article.content);
 
     // =============================
-    // 4. LOG USAGE (non-blocking)
+    // 6. LOG USAGE (NON-BLOCKING)
     // =============================
     supabase
       .from("usage_logs")
@@ -170,10 +185,12 @@ module.exports = async (req, res) => {
         user_id: userId,
         endpoint: "/api/scrape"
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("USAGE LOG ERROR:", err);
+      });
 
     // =============================
-    // 5. RESPONSE
+    // 7. RESPONSE
     // =============================
     return res.status(200).json({
       success: true,

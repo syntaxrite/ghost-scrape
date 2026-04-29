@@ -142,10 +142,16 @@
 
     <footer class="mt-20 py-12 border-t border-white/5 text-center">
         <div class="mb-4 flex justify-center gap-6">
-            <a href="mailto:support@ghost-scrape.tech">Contact</a>
+                       <a href="#" onclick="openMail(event)" class="hover:text-purple-400 flex items-center gap-1">
+    <i data-lucide="mail" class="w-4 h-4"></i>
+    Contact
+</a>
             <a href="https://github.com/Ghost-Scrape/Ghost-Scrape.io" target="_blank" class="hover:text-purple-400 transition-colors flex items-center gap-1">
                 <i data-lucide="github" class="w-4 h-4"></i> GitHub
             </a>
+            <a href="/privacy.html" class="hover:text-purple-400 text-xs">
+    Privacy Policy
+</a>
         </div>
         <p class="text-gray-600 text-[10px] font-mono tracking-[0.3em]">
             &copy; 2026 GHOST-SCRAPE.TECH — <span class="text-gray-400 tracking-normal">POWERING AI AGENTS</span>
@@ -314,11 +320,10 @@
             btn.innerHTML = `<div class="loader"></div>`;
 
             try {
-                const API_BASE = "https://ghost-scrape.tech";
                 const apiKey = localStorage.getItem("ghost_api_key") || "";
                 const endpoint = apiKey ? "/api/scrape" : "/api/demo";
                 const response = await fetch(
-                    `${API_BASE}${endpoint}?url=${encodeURIComponent(url)}`,
+                    `${endpoint}?url=${encodeURIComponent(url)}`,
                     {
                         headers: {
                             "x-api-key": apiKey
