@@ -4,21 +4,18 @@ const {
   normalizeUrl,
   getWordCount,
   cleanMarkdown,
-  turndown
+  turndown,
 } = require("../lib/utils");
 
 const {
   getDomain,
-  fetchSmart
+  fetchSmart,
 } = require("../lib/engine");
 
 const {
-  extractContent
+  extractContent,
 } = require("../lib/extractor");
 
-// -----------------------------
-// Validate API Key
-// -----------------------------
 async function validateKey(key) {
   const { data, error } = await supabase
     .from("api_keys")
@@ -30,142 +27,165 @@ async function validateKey(key) {
   return data;
 }
 
-// -----------------------------
-// MAIN HANDLER
-// -----------------------------
+function getApiKeyFromHeader(req) {
+  const raw =
+    req.headers.authorization ||
+    req.headers.Authorization ||
+    "";
+
+  const value = String(raw).trim();
+
+  if (!value) return null;
+
+  if (/^bearer\s+/i.test(value)) {
+    return value.replace(/^bearer\s+/i, "").trim();
+  }
+
+  return value;
+}
+
 module.exports = async (req, res) => {
   try {
+    const apiKey = getApiKeyFromHeader(req);
 
-    // =============================
-    // 1. AUTH (FIXED + ROBUST)
-    // =============================
-    const authHeader =
-      req.headers.authorization || req.headers.Authorization;
-
-    if (!authHeader) {
+    if (!apiKey) {
       return res.status(401).json({
         success: false,
-        error: "API key required"
+        error: "API key required",
       });
     }
 
-    const apiKey = authHeader.replace("Bearer ", "").trim();
+    const keyRow = await validateKey(apiKey);
 
-    const user = await validateKey(apiKey);
-
-    if (!user) {
+    if (!keyRow) {
       return res.status(403).json({
         success: false,
-        error: "Invalid API key"
+        error: "Invalid API key",
       });
     }
 
-    // =============================
-    // 2. RATE LIMIT / USAGE LOG
-    // =============================
-    await supabase.from("usage_logs").insert({
-      user_id: user.user_id,
-      endpoint: "/api/scrape"
-    });
+    const userId = keyRow.user_id;
+    if (!userId) {
+      return res.status(500).json({
+        success: false,
+        error: "API key is not linked to a user",
+      });
+    }
 
-    // =============================
-    // 3. DAILY LIMIT RESET
-    // =============================
+    const { data: userRow, error: userError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (userError || !userRow) {
+      return res.status(403).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
     const today = new Date().toISOString().split("T")[0];
 
-    if (user.last_reset !== today) {
-      await supabase
+    if (userRow.last_reset !== today) {
+      const { error: resetError } = await supabase
         .from("users")
         .update({
           requests_today: 0,
-          last_reset: today
+          last_reset: today,
         })
-        .eq("id", user.user_id);
-    }
+        .eq("id", userId);
 
-    const { data: freshUser } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", user.user_id)
-      .single();
+      if (resetError) {
+        return res.status(500).json({
+          success: false,
+          error: "Failed to reset usage",
+        });
+      }
+
+      userRow.requests_today = 0;
+      userRow.last_reset = today;
+    }
 
     const LIMITS = {
       free: 20,
-      pro: 1000
+      pro: 1000,
     };
 
-    const limit = LIMITS[freshUser.plan] || 20;
+    const plan = String(userRow.plan || "free").toLowerCase();
+    const limit = LIMITS[plan] ?? LIMITS.free;
 
-    if (freshUser.requests_today >= limit) {
+    if ((userRow.requests_today || 0) >= limit) {
       return res.status(429).json({
         success: false,
-        error: "Daily limit reached"
+        error: "Daily limit reached",
       });
     }
 
-    // =============================
-    // 4. URL INPUT (FIXED)
-    // =============================
-    let url =
-      req.body?.url ||
-      req.query?.url;
+    const url = req.body?.url || req.query?.url;
 
     if (!url) {
       return res.status(400).json({
         success: false,
-        error: "URL required"
+        error: "URL required",
       });
     }
 
-    // =============================
-    // 5. SCRAPE ENGINE
-    // =============================
-    url = normalizeUrl(url);
-    const domain = getDomain(url);
+    const normalizedUrl = normalizeUrl(url);
+    const domain = getDomain(normalizedUrl);
 
-    const { html, source, wasBlocked } = await fetchSmart(url);
+    const { html, source, wasBlocked } = await fetchSmart(normalizedUrl);
 
-    const article = extractContent(html, url);
+    const article = extractContent(html, normalizedUrl);
 
-    if (!article) {
+    if (!article || !article.content) {
       return res.status(422).json({
         success: false,
-        error: "Content unreadable"
+        error: "Content unreadable",
       });
     }
 
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
-    const wordCount = getWordCount(article.text);
+    const wordCount = getWordCount(article.text || article.content || "");
 
-    // =============================
-    // 6. INCREMENT USAGE
-    // =============================
-    await supabase
+    const { error: usageError } = await supabase
+      .from("usage_logs")
+      .insert({
+        user_id: userId,
+        endpoint: "/api/scrape",
+      });
+
+    if (usageError) {
+      console.error("Usage log error:", usageError.message);
+    }
+
+    const { error: incrementError } = await supabase
       .from("users")
       .update({
-        requests_today: freshUser.requests_today + 1
+        requests_today: (userRow.requests_today || 0) + 1,
       })
-      .eq("id", user.user_id);
+      .eq("id", userId);
 
-    // =============================
-    // 7. RESPONSE
-    // =============================
+    if (incrementError) {
+      console.error("Usage increment error:", incrementError.message);
+    }
+
     return res.status(200).json({
       success: true,
-      title: article.title,
+      title: article.title || "Untitled",
       domain,
       source,
-      wasBlocked,
+      wasBlocked: !!wasBlocked,
       wordCount,
-      markdown
+      markdown,
     });
-
   } catch (err) {
+    console.error("SCRAPE ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: err.message
+      error: err.message || "Internal server error",
     });
   }
 };

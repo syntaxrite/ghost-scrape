@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "ghost-scrape-api",
   "version": "1.0.0",
   "main": "api/index.js",
@@ -13,7 +14,6 @@
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
-    "crypto": "^1.0.1",
     "express": "^4.22.1",
     "http-proxy-agent": "^7.0.0",
     "jsdom": "^22.1.0",
