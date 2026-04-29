@@ -1,10 +1,3 @@
-res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
-res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
 const {
   normalizeUrl,
   getWordCount,
@@ -60,11 +53,23 @@ async function validateKey(apiKey) {
   return data;
 }
 
+// -----------------------------
+// MAIN HANDLER
+// -----------------------------
 module.exports = async (req, res) => {
-  const ip = getIp(req);
-  const apiKey = getApiKeyFromHeader(req);
+  // CORS (MUST BE INSIDE)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
   try {
+    const ip = getIp(req);
+    const apiKey = getApiKeyFromHeader(req);
+
     let url = req.body?.url || req.query?.url;
 
     if (!url) {
@@ -76,6 +81,9 @@ module.exports = async (req, res) => {
 
     url = normalizeUrl(url);
 
+    // -----------------------------
+    // AUTH CHECK
+    // -----------------------------
     let validApiKey = null;
 
     if (apiKey) {
@@ -91,6 +99,9 @@ module.exports = async (req, res) => {
       validApiKey = keyRow.key;
     }
 
+    // -----------------------------
+    // RATE LIMIT (BURST)
+    // -----------------------------
     const now = Date.now();
     const identifier = validApiKey || ip;
 
@@ -111,6 +122,9 @@ module.exports = async (req, res) => {
 
     burstCache[identifier].push(now);
 
+    // -----------------------------
+    // USAGE LIMITS
+    // -----------------------------
     const usage = await checkUsage(validApiKey, ip);
 
     if (!validApiKey && usage >= FREE_TRIAL_LIMIT) {
@@ -127,6 +141,9 @@ module.exports = async (req, res) => {
       });
     }
 
+    // -----------------------------
+    // SCRAPE
+    // -----------------------------
     const { html, source, wasBlocked } = await fetchSmart(url);
     const article = extractContent(html, url);
 
@@ -140,8 +157,14 @@ module.exports = async (req, res) => {
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
+    // -----------------------------
+    // LOG USAGE
+    // -----------------------------
     await logUsage(validApiKey, ip);
 
+    // -----------------------------
+    // RESPONSE
+    // -----------------------------
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
@@ -150,8 +173,10 @@ module.exports = async (req, res) => {
       markdown: markdown.slice(0, 8000),
       wordCount: getWordCount(article.text || article.content || ""),
     });
+
   } catch (err) {
     console.error("DEMO ERROR:", err);
+
     return res.status(500).json({
       success: false,
       error: "Internal server error",
