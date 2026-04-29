@@ -1,10 +1,3 @@
-console.log("SCRAPE START");
-console.log("ENV CHECK:", {
-  SUPABASE: !!process.env.SUPABASE_URL,
-  KEY: !!process.env.SUPABASE_KEY,
-  BROWSERLESS: !!process.env.BROWSERLESS_TOKEN
-});
-
 const supabase = require("../lib/supabase");
 
 const {
@@ -29,14 +22,13 @@ const {
 async function validateKey(key) {
   if (!key) return null;
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("api_keys")
     .select("*")
     .eq("key", key)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
-  return data;
+  return data || null;
 }
 
 // -----------------------------
@@ -48,7 +40,7 @@ function getApiKey(req) {
     req.headers?.Authorization ||
     req.headers?.["x-api-key"];
 
-  if (!auth) return null;
+  if (!auth || typeof auth !== "string") return null;
 
   if (auth.startsWith("Bearer ")) {
     return auth.slice(7).trim();
@@ -62,7 +54,7 @@ function getApiKey(req) {
 // -----------------------------
 module.exports = async (req, res) => {
   try {
-    // DEBUG (keep for now)
+    console.log("SCRAPE START");
     console.log("HEADERS:", req.headers);
 
     // =============================
@@ -96,9 +88,19 @@ module.exports = async (req, res) => {
     }
 
     // =============================
-    // 2. INPUT URL
+    // 2. INPUT URL (SAFE PARSE)
     // =============================
-    const url = req.body?.url || req.query?.url;
+    let body = {};
+
+    try {
+      body = typeof req.body === "object"
+        ? req.body
+        : JSON.parse(req.body || "{}");
+    } catch {
+      body = {};
+    }
+
+    const url = body.url || req.query?.url;
 
     if (!url) {
       return res.status(400).json({
@@ -132,10 +134,13 @@ module.exports = async (req, res) => {
     // =============================
     // 4. LOG USAGE (non-blocking)
     // =============================
-    supabase.from("usage_logs").insert({
-      user_id: userId,
-      endpoint: "/api/scrape"
-    }).catch(() => {});
+    supabase
+      .from("usage_logs")
+      .insert({
+        user_id: userId,
+        endpoint: "/api/scrape"
+      })
+      .catch(() => {});
 
     // =============================
     // 5. RESPONSE
