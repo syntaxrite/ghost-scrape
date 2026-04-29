@@ -1,5 +1,4 @@
 const supabase = require("../../lib/supabase");
-const crypto = require("crypto");
 const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -11,7 +10,7 @@ function generateOTP() {
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ success: false });
+      return res.status(405).json({ success: false, error: "Method not allowed" });
     }
 
     const { email } = req.body;
@@ -20,48 +19,48 @@ module.exports = async (req, res) => {
       return res.status(400).json({ success: false, error: "Email required" });
     }
 
-    // ✅ CHECK IF USER EXISTS (NOW VALID)
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email)
-      .maybeSingle();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (existingUser) {
-      return res.status(200).json({
-        success: true,
-        message: "User already registered. Please login.",
-      });
-    }
+    // 🔥 optional but recommended: delete previous OTPs
+    await supabase
+      .from("otp_codes")
+      .delete()
+      .eq("email", normalizedEmail);
 
     const code = generateOTP();
-    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // SAVE OTP
-    await supabase.from("otp_codes").insert({
-      email,
+    const { error: insertError } = await supabase.from("otp_codes").insert({
+      email: normalizedEmail,
       code,
-      expires_at: expires.toISOString(),
+      expires_at: expiresAt.toISOString(),
     });
 
-    // SEND EMAIL
+    if (insertError) {
+      return res.status(500).json({ success: false, error: "Failed to store OTP" });
+    }
+
     await resend.emails.send({
       from: "Ghost Scrape <no-reply@ghost-scrape.tech>",
-      to: email,
+      to: normalizedEmail,
       subject: "Your OTP - Ghost Scrape",
-      html: `<p>Your OTP is <strong>${code}</strong></p>`
+      html: `
+        <h2>Your OTP</h2>
+        <p><strong>${code}</strong></p>
+        <p>This code expires in 10 minutes.</p>
+      `,
     });
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent"
+      message: "OTP sent successfully",
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("OTP request error:", err);
     return res.status(500).json({
       success: false,
-      error: "Server error"
+      error: "Server error",
     });
   }
 };

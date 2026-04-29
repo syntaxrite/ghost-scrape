@@ -2,7 +2,7 @@ const supabase = require("../../lib/supabase");
 const crypto = require("crypto");
 
 function generateApiKey() {
-  return "ghost_" + crypto.randomBytes(16).toString("hex");
+  return "ghost_" + crypto.randomBytes(24).toString("hex");
 }
 
 module.exports = async (req, res) => {
@@ -11,92 +11,99 @@ module.exports = async (req, res) => {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
 
-    const { email } = req.body;
+    const email = req.body.email?.toLowerCase().trim();
     const code = String(req.body.code || req.body.otp || "").trim();
 
     if (!email || !code) {
-      return res.status(400).json({ success: false, error: "Email and OTP required" });
+      return res.status(400).json({
+        success: false,
+        error: "Email and OTP required",
+      });
     }
 
+    // 🔥 only VALID + NON-EXPIRED OTP
     const { data: otpRow, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
       .eq("email", email)
       .eq("code", code)
+      .gt("expires_at", new Date().toISOString())
       .maybeSingle();
 
     if (otpError || !otpRow) {
-      return res.status(401).json({ success: false, error: "Invalid OTP" });
+      return res.status(401).json({
+        success: false,
+        error: "Invalid or expired OTP",
+      });
     }
 
-    if (new Date(otpRow.expires_at) < new Date()) {
-      return res.status(401).json({ success: false, error: "OTP expired" });
-    }
-
-    let { data: user, error: userError } = await supabase
+    // 🔥 get or create user
+    let { data: user } = await supabase
       .from("users")
       .select("*")
       .eq("email", email)
       .maybeSingle();
 
-    if (userError) {
-      return res.status(500).json({ success: false, error: "User lookup failed" });
-    }
-
     if (!user) {
-      const { data: createdUser, error: createError } = await supabase
+      const { data: newUser, error } = await supabase
         .from("users")
         .insert({ email })
-        .select("*")
+        .select()
         .single();
 
-      if (createError || !createdUser) {
-        return res.status(500).json({ success: false, error: "User creation failed" });
+      if (error) {
+        return res.status(500).json({
+          success: false,
+          error: "User creation failed",
+        });
       }
 
-      user = createdUser;
+      user = newUser;
     }
 
-    // check if API key already exists
-const { data: existingKey } = await supabase
-  .from("api_keys")
-  .select("*")
-  .eq("user_id", user.id)
-  .maybeSingle();
+    // 🔥 check existing API key
+    const { data: existingKey } = await supabase
+      .from("api_keys")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-if (existingKey) {
-  await supabase.from("otp_codes").delete().eq("id", otpRow.id);
+    let apiKey;
 
-  return res.status(200).json({
-    success: true,
-    apiKey: existingKey.key
-  });
-}
+    if (existingKey) {
+      apiKey = existingKey.key;
+    } else {
+      apiKey = generateApiKey();
 
-// otherwise create new key
-const apiKey = generateApiKey();
+      const { error: keyError } = await supabase.from("api_keys").insert({
+        user_id: user.id,
+        key: apiKey,
+      });
 
-const { error: keyError } = await supabase.from("api_keys").insert({
-  user_id: user.id,
-  key: apiKey
-});
-
-if (keyError) {
-  return res.status(500).json({ success: false, error: "API key creation failed" });
-}
-
-    if (keyError) {
-      return res.status(500).json({ success: false, error: "API key creation failed" });
+      if (keyError) {
+        return res.status(500).json({
+          success: false,
+          error: "API key creation failed",
+        });
+      }
     }
 
-    await supabase.from("otp_codes").delete().eq("id", otpRow.id);
+    // 🔥 cleanup OTP (IMPORTANT)
+    await supabase
+      .from("otp_codes")
+      .delete()
+      .eq("email", email);
 
     return res.status(200).json({
       success: true,
-      apiKey
+      apiKey,
     });
+
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, error: "Server error" });
+    console.error("Verify OTP error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
   }
 };
