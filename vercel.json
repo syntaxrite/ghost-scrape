@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "https://www.ghost-scrape.tech/(.*)",
+      "destination": "https://ghost-scrape.tech/$1",
+      "permanent": true
+    }
+  ]
+}
