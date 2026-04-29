@@ -1,16 +1,24 @@
-import express from "express";
-import path from "path";
-
-const app = express();
-
-// serve frontend
-app.use(express.static("public"));
 const supabase = require("../lib/supabase");
 
-const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
-const { getDomain, fetchSmart } = require("../lib/engine");
-const { extractContent } = require("../lib/extractor");
+const {
+  normalizeUrl,
+  getWordCount,
+  cleanMarkdown,
+  turndown
+} = require("../lib/utils");
 
+const {
+  getDomain,
+  fetchSmart
+} = require("../lib/engine");
+
+const {
+  extractContent
+} = require("../lib/extractor");
+
+// -----------------------------
+// Validate API Key
+// -----------------------------
 async function validateKey(key) {
   const { data, error } = await supabase
     .from("api_keys")
@@ -18,23 +26,30 @@ async function validateKey(key) {
     .eq("key", key)
     .single();
 
-  if (error) return null;
+  if (error || !data) return null;
   return data;
 }
 
+// -----------------------------
+// MAIN HANDLER
+// -----------------------------
 module.exports = async (req, res) => {
   try {
-    // -----------------------------
-    // 1. GET API KEY
-    // -----------------------------
-    const apiKey = req.headers["x-api-key"];
 
-    if (!apiKey) {
+    // =============================
+    // 1. AUTH (FIXED + ROBUST)
+    // =============================
+    const authHeader =
+      req.headers.authorization || req.headers.Authorization;
+
+    if (!authHeader) {
       return res.status(401).json({
         success: false,
         error: "API key required"
       });
     }
+
+    const apiKey = authHeader.replace("Bearer ", "").trim();
 
     const user = await validateKey(apiKey);
 
@@ -45,19 +60,19 @@ module.exports = async (req, res) => {
       });
     }
 
-    // -----------------------------
-    // Log usage after API key validation
+    // =============================
+    // 2. RATE LIMIT / USAGE LOG
+    // =============================
     await supabase.from("usage_logs").insert({
       user_id: user.user_id,
       endpoint: "/api/scrape"
     });
 
-    // -----------------------------
-    // Quota logic (daily limits)
-    // -----------------------------
+    // =============================
+    // 3. DAILY LIMIT RESET
+    // =============================
     const today = new Date().toISOString().split("T")[0];
 
-    // reset if new day
     if (user.last_reset !== today) {
       await supabase
         .from("users")
@@ -68,14 +83,12 @@ module.exports = async (req, res) => {
         .eq("id", user.user_id);
     }
 
-    // refresh user data
     const { data: freshUser } = await supabase
       .from("users")
       .select("*")
       .eq("id", user.user_id)
       .single();
 
-    // LIMIT RULES
     const LIMITS = {
       free: 20,
       pro: 1000
@@ -86,13 +99,16 @@ module.exports = async (req, res) => {
     if (freshUser.requests_today >= limit) {
       return res.status(429).json({
         success: false,
-        error: "Daily limit reached. Upgrade plan."
+        error: "Daily limit reached"
       });
     }
 
-    // 2. GET URL
-    // -----------------------------
-    let { url } = req.query;
+    // =============================
+    // 4. URL INPUT (FIXED)
+    // =============================
+    let url =
+      req.body?.url ||
+      req.query?.url;
 
     if (!url) {
       return res.status(400).json({
@@ -101,9 +117,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    // -----------------------------
-    // 3. PROCESS URL
-    // -----------------------------
+    // =============================
+    // 5. SCRAPE ENGINE
+    // =============================
     url = normalizeUrl(url);
     const domain = getDomain(url);
 
@@ -123,10 +139,9 @@ module.exports = async (req, res) => {
 
     const wordCount = getWordCount(article.text);
 
-    // -----------------------------
-    // 4. RESPONSE
-    // -----------------------------
-    // Increment usage before response
+    // =============================
+    // 6. INCREMENT USAGE
+    // =============================
     await supabase
       .from("users")
       .update({
@@ -134,6 +149,9 @@ module.exports = async (req, res) => {
       })
       .eq("id", user.user_id);
 
+    // =============================
+    // 7. RESPONSE
+    // =============================
     return res.status(200).json({
       success: true,
       title: article.title,
