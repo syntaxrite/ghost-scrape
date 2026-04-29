@@ -1,11 +1,3 @@
-res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
-res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
-
 const supabase = require("../../lib/supabase");
 const crypto = require("crypto");
 
@@ -13,14 +5,46 @@ function generateApiKey() {
   return "ghost_" + crypto.randomBytes(24).toString("hex");
 }
 
+function parseBody(req) {
+  if (typeof req.body === "object" && req.body !== null) return req.body;
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 module.exports = async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, x-api-key");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
+  }
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ success: false, error: "Method not allowed" });
+    const body = parseBody(req);
+
+    if (!body) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid JSON body",
+      });
     }
 
-    const email = req.body.email?.toLowerCase().trim();
-    const code = String(req.body.code || req.body.otp || "").trim();
+    const email = String(body.email || "").toLowerCase().trim();
+    const code = String(body.code || body.otp || "").trim();
 
     if (!email || !code) {
       return res.status(400).json({
@@ -29,37 +53,54 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 🔥 only VALID + NON-EXPIRED OTP
+    // Check OTP
     const { data: otpRow, error: otpError } = await supabase
       .from("otp_codes")
-      .select("*")
+      .select("id, email, code, expires_at")
       .eq("email", email)
       .eq("code", code)
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
 
-    if (otpError || !otpRow) {
+    if (otpError) {
+      console.error("OTP lookup error:", otpError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to verify OTP",
+      });
+    }
+
+    if (!otpRow) {
       return res.status(401).json({
         success: false,
         error: "Invalid or expired OTP",
       });
     }
 
-    // 🔥 get or create user
-    let { data: user } = await supabase
+    // Get or create user
+    let { data: user, error: userError } = await supabase
       .from("users")
       .select("*")
       .eq("email", email)
       .maybeSingle();
 
+    if (userError) {
+      console.error("User lookup error:", userError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to load user",
+      });
+    }
+
     if (!user) {
-      const { data: newUser, error } = await supabase
+      const { data: newUser, error: createUserError } = await supabase
         .from("users")
         .insert({ email })
-        .select()
+        .select("*")
         .single();
 
-      if (error) {
+      if (createUserError) {
+        console.error("User creation error:", createUserError);
         return res.status(500).json({
           success: false,
           error: "User creation failed",
@@ -69,26 +110,33 @@ module.exports = async (req, res) => {
       user = newUser;
     }
 
-    // 🔥 check existing API key
-    const { data: existingKey } = await supabase
+    // Reuse or create API key
+    const { data: existingKey, error: keyLookupError } = await supabase
       .from("api_keys")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    let apiKey;
+    if (keyLookupError) {
+      console.error("API key lookup error:", keyLookupError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to load API key",
+      });
+    }
 
-    if (existingKey) {
-      apiKey = existingKey.key;
-    } else {
+    let apiKey = existingKey?.key;
+
+    if (!apiKey) {
       apiKey = generateApiKey();
 
-      const { error: keyError } = await supabase.from("api_keys").insert({
+      const { error: keyInsertError } = await supabase.from("api_keys").insert({
         user_id: user.id,
         key: apiKey,
       });
 
-      if (keyError) {
+      if (keyInsertError) {
+        console.error("API key insert error:", keyInsertError);
         return res.status(500).json({
           success: false,
           error: "API key creation failed",
@@ -96,22 +144,18 @@ module.exports = async (req, res) => {
       }
     }
 
-    // 🔥 cleanup OTP (IMPORTANT)
-    await supabase
-      .from("otp_codes")
-      .delete()
-      .eq("email", email);
+    // Delete OTPs for this email after success
+    await supabase.from("otp_codes").delete().eq("email", email);
 
     return res.status(200).json({
       success: true,
       apiKey,
     });
-
   } catch (err) {
-    console.error("Verify OTP error:", err);
+    console.error("VERIFY OTP ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: "Server error",
+      error: err.message || "Server error",
     });
   }
 };
