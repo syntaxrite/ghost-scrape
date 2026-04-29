@@ -50,14 +50,11 @@
 </div>
 
 <script>
-
-const API_BASE = "";
 const apiKey = localStorage.getItem("ghost_api_key");
 
 window.onload = async () => {
     if (!apiKey) return;
 
-    //  VERIFY KEY WITH BACKEND
     try {
         const res = await fetch(`/api/user/stats`, {
             headers: { "x-api-key": apiKey }
@@ -84,25 +81,29 @@ function showLoggedIn(key) {
 
 async function requestOTP() {
     const email = document.getElementById("email").value.trim().toLowerCase();
-
     if (!email) return alert("Enter email");
 
     setStatus("Sending OTP...");
 
-    const res = await fetch(`/api/auth/request-otp`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ email })
-    });
+    try {
+        const res = await fetch(`/api/auth/request-otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (res.ok && data.success) {
-        document.getElementById("emailStep").classList.add("hidden");
-        document.getElementById("otpStep").classList.remove("hidden");
-        setStatus("OTP sent!");
-    } else {
-        setStatus(data.error || "Failed");
+        if (res.ok && data.success) {
+            document.getElementById("emailStep").classList.add("hidden");
+            document.getElementById("otpStep").classList.remove("hidden");
+            setStatus("OTP sent!");
+        } else {
+            setStatus(data.error || "Failed");
+        }
+    } catch (err) {
+        console.error(err);
+        setStatus("Network error");
     }
 }
 
@@ -114,32 +115,30 @@ async function verifyOTP() {
 
     setStatus("Verifying...");
 
-    const res = await fetch(`/api/auth/verify-otp`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ email, code: otp })
-    });
+    try {
+        const res = await fetch(`/api/auth/verify-otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, code: otp })
+        });
 
-    let data;
+        const data = await res.json();
 
-try {
-  data = await response.json();
-} catch {
-  const text = await response.text();
-  throw new Error(text || "Invalid server response");
-}
-
-    if (res.ok && data.success) {
-        localStorage.setItem("ghost_api_key", data.apiKey);
-        showLoggedIn(data.apiKey);
-        setStatus("Login successful");
-    } else {
-        setStatus(data.error || "Invalid OTP");
+        if (res.ok && data.success) {
+            localStorage.setItem("ghost_api_key", data.apiKey);
+            showLoggedIn(data.apiKey);
+            setStatus("Login successful");
+        } else {
+            setStatus(data.error || "Invalid OTP");
+        }
+    } catch (err) {
+        console.error(err);
+        setStatus("Network error");
     }
 }
 
 function copyKey() {
-    navigator.clipboard.writeText(localStorage.getItem("ghost_api_key"));
+    navigator.clipboard.writeText(localStorage.getItem("ghost_api_key") || "");
     setStatus("Copied!");
 }
 

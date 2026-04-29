@@ -53,13 +53,19 @@ module.exports = async (req, res) => {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    // Remove old OTPs for this email
-    await supabase
+    const { error: deleteError } = await supabase
       .from("otp_codes")
       .delete()
       .eq("email", email);
 
-    // Save new OTP
+    if (deleteError) {
+      console.error("OTP delete error:", deleteError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to prepare OTP",
+      });
+    }
+
     const { error: insertError } = await supabase.from("otp_codes").insert({
       email,
       code,
@@ -74,9 +80,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Send OTP email through Resend
     const { error: emailError } = await resend.emails.send({
-      from: "Ghost Scrape <onboarding@resend.dev>",
+      from: process.env.EMAIL_FROM,
       to: email,
       subject: "Your Ghost Scrape OTP",
       html: `
@@ -92,7 +97,6 @@ module.exports = async (req, res) => {
     if (emailError) {
       console.error("Resend error:", emailError);
 
-      // Clean up if email failed
       await supabase.from("otp_codes").delete().eq("email", email);
 
       return res.status(500).json({

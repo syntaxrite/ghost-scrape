@@ -53,7 +53,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Check OTP
     const { data: otpRow, error: otpError } = await supabase
       .from("otp_codes")
       .select("id, email, code, expires_at")
@@ -77,7 +76,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Get or create user
     let { data: user, error: userError } = await supabase
       .from("users")
       .select("*")
@@ -95,7 +93,12 @@ module.exports = async (req, res) => {
     if (!user) {
       const { data: newUser, error: createUserError } = await supabase
         .from("users")
-        .insert({ email })
+        .insert({
+          email,
+          requests_today: 0,
+          last_request: null,
+          plan: "free",
+        })
         .select("*")
         .single();
 
@@ -110,7 +113,6 @@ module.exports = async (req, res) => {
       user = newUser;
     }
 
-    // Reuse or create API key
     const { data: existingKey, error: keyLookupError } = await supabase
       .from("api_keys")
       .select("*")
@@ -144,8 +146,14 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Delete OTPs for this email after success
-    await supabase.from("otp_codes").delete().eq("email", email);
+    const { error: deleteOtpError } = await supabase
+      .from("otp_codes")
+      .delete()
+      .eq("email", email);
+
+    if (deleteOtpError) {
+      console.error("OTP cleanup error:", deleteOtpError);
+    }
 
     return res.status(200).json({
       success: true,
