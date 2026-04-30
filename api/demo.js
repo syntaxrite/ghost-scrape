@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
     // -----------------------------
     // LOG USAGE
     // -----------------------------
-    await logUsage(validApiKey, ip);
+    await logUsage(validApiKey, ip, "/api/demo");
 
     // -----------------------------
     // RESPONSE
