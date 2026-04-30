@@ -1,401 +1,504 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-    <meta name="google-site-verification" content="hvbQsaNNX8Dd383prddRRZpeopdzVJlHWbsG0serKc4" />
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Transform any URL into clean, LLM-ready Markdown. Cheaper, smarter, and faster web scraping for AI agents and developers.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://ghost-scrape.tech/">
-    <meta property="og:title" content="Ghost Scrape | Professional Article Extractor">
-    <meta property="og:description" content="Clean, structured data from any blog or news site in seconds.">
-    <meta property="og:image" content="https://ghost-scrape.tech/og-image.png">
-    <title>Ghost Scrape | Fast AI-Ready Web Scraping & Markdown Extraction</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 10h.01'/><path d='M15 10h.01'/><path d='M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z'/></svg>">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono&family=Architects+Daughter&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    
-    <style>
-        :root { --purple: #a855f7; }
-        body { font-family: 'Inter', sans-serif; background: #050505; color: white; overflow-x: hidden; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .hand { font-family: 'Architects Daughter', cursive; }
-        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
-        
-        .loader { 
-            width: 20px; height: 20px; border: 2px solid rgba(168, 85, 247, 0.3);
-            border-top-color: var(--purple); border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .scribble-path {
-            stroke-dasharray: 1000; stroke-dashoffset: 1000;
-            animation: draw 2s ease-in-out forwards;
-        }
-        @keyframes draw { to { stroke-dashoffset: 0; } }
-
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.2); border-radius: 10px; }
-        
-        #formattedContent h1 { font-size: 2.25rem; font-weight: 900; margin-bottom: 1.5rem; color: white; }
-        #formattedContent h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: #a855f7; }
-        #formattedContent p { margin-bottom: 1.25rem; color: #9ca3af; line-height: 1.75; }
-        #formattedContent ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: #9ca3af; }
-    </style>
-</head>
-<body class="min-h-screen">
-
-    <nav class="max-w-7xl mx-auto px-8 py-6 flex justify-between items-center border-b border-white/5">
-        <div class="flex items-center gap-3 group cursor-pointer" onclick="window.location.reload()">
-            <div class="p-2 bg-purple-600 rounded-xl group-hover:rotate-12 transition-all">
-                <i data-lucide="ghost" class="text-white w-6 h-6"></i>
-            </div>
-            <span class="text-2xl font-black tracking-tighter">ghost-scrape<span class="text-purple-500">.tech</span></span>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050505" />
+  <meta name="description" content="Ghost Scrape is a production-ready API that converts public web pages into clean Markdown for AI agents, RAG pipelines, and developer tools." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://ghost-scrape.tech/" />  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://ghost-scrape.tech/" />
+  <meta property="og:title" content="Ghost Scrape | AI-Ready Web Extraction API" />
+  <meta property="og:description" content="Convert public URLs into clean Markdown for agents and developers." />
+  <meta property="og:image" content="https://ghost-scrape.tech/og-image.png" />
+  <meta property="og:site_name" content="Ghost Scrape" />  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Ghost Scrape | AI-Ready Web Extraction API" />
+  <meta name="twitter:description" content="Convert public URLs into clean Markdown for agents and developers." />
+  <meta name="twitter:image" content="https://ghost-scrape.tech/og-image.png" />  <title>Ghost Scrape | AI-Ready Web Extraction API</title>  <script src="https://cdn.tailwindcss.com"></script>  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Ghost Scrape",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "description": "API that converts public web pages into clean Markdown for AI agents and developers.",
+    "url": "https://ghost-scrape.tech/",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>  <style>
+    :root {
+      --bg: #050505;
+      --panel: rgba(255,255,255,0.04);
+      --panel-2: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.09);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --purple: #a855f7;
+      --purple-2: #c084fc;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(168,85,247,0.14), transparent 30%),
+        radial-gradient(circle at right, rgba(56,189,248,0.08), transparent 28%),
+        var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+    .mono { font-family: "JetBrains Mono", monospace; }
+    .glass {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 90px rgba(0,0,0,0.35);
+    }
+    .subtle-border { border: 1px solid rgba(255,255,255,0.08); }
+    .codebox {
+      background: #0b0b0b;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .soft-shadow { box-shadow: 0 12px 45px rgba(0,0,0,0.28); }
+    .gridlines {
+      background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .chip {
+      border: 1px solid rgba(168,85,247,0.22);
+      background: rgba(168,85,247,0.08);
+      color: #e9d5ff;
+    }
+    .tab-active { background: rgba(255,255,255,0.08); color: white; }
+    .tab-inactive { color: #94a3b8; }
+    .tab-inactive:hover { background: rgba(255,255,255,0.04); color: white; }
+    pre, code { font-family: "JetBrains Mono", monospace; }
+    .safe-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+    .safe-scroll::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.25); border-radius: 999px; }
+    .safe-scroll::-webkit-scrollbar-track { background: transparent; }
+    .btn-primary {
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
+      box-shadow: 0 12px 30px rgba(168,85,247,0.25);
+    }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-ghost { background: rgba(255,255,255,0.04); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08); }
+    .section-title { letter-spacing: -0.04em; }
+    .kbd {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      padding: 0.15rem 0.45rem;
+      border-radius: 0.5rem;
+      font-size: 0.72rem;
+      color: #dbeafe;
+    }
+    #formattedContent h1 { font-size: 2rem; font-weight: 900; margin: 0 0 1rem; color: white; }
+    #formattedContent h2 { font-size: 1.35rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: var(--purple-2); }
+    #formattedContent p, #formattedContent li { color: #cbd5e1; line-height: 1.8; }
+    #formattedContent ul { list-style: disc; padding-left: 1.5rem; }
+  </style></head>
+<body>
+  <header class="sticky top-0 z-50 bg-black/70 backdrop-blur-xl border-b border-white/5">
+    <nav class="max-w-7xl mx-auto px-5 md:px-8 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="p-2 rounded-2xl bg-purple-600/95 group-hover:rotate-6 transition-transform">
+          <i data-lucide="ghost" class="w-5 h-5 text-white"></i>
         </div>
-        
-        <div class="hidden md:flex items-center gap-8 text-sm font-bold text-gray-400">
-            <a href="#" onclick="openPricing(); return false;" class="hover:text-white transition-colors">Pricing</a>
-            <a href="#" onclick="openAPI(); return false;" class="hover:text-white transition-colors">API</a>
-            <div class="h-4 w-[1px] bg-white/10"></div>
-            <a href="/login.html" id="loginLink" class="hover:text-white transition-colors">Login</a>
-            <a href="/dashboard.html" class="hover:text-white transition-colors">Dashboard</a>
-            <a href="/login.html" class="px-6 py-2 bg-white text-black rounded-full hover:bg-purple-400 transition-all shadow-[4px_4px_0px_0px_rgba(168,85,247,1)] active:shadow-none active:translate-x-1 active:translate-y-1">
-                Join Beta
-            </a>
+        <div>
+          <div class="font-black tracking-tight text-lg md:text-xl">ghost-scrape<span class="text-purple-500">.tech</span></div>
+          <div class="text-[10px] uppercase tracking-[0.28em] text-slate-500">AI-ready web extraction api</div>
         </div>
-    </nav>
+      </a><div class="hidden md:flex items-center gap-5 text-sm font-medium text-slate-400">
+    <a href="/docs.html" class="hover:text-white transition-colors">Docs</a>
+    <a href="/status.html" class="hover:text-white transition-colors">Status</a>
+    <a href="/terms.html" class="hover:text-white transition-colors">Terms</a>
+    <a href="/dashboard.html" class="hover:text-white transition-colors">Dashboard</a>
+    <a href="/login.html" class="px-4 py-2 rounded-2xl btn-primary text-white font-bold">Get API key</a>
+  </div>
+</nav>
 
-    <main class="max-w-5xl mx-auto px-6 py-20">
-        <header class="text-center mb-16 relative">
-            <div class="inline-block px-4 py-1.5 mb-6 border border-dashed border-purple-500/50 rounded-full text-purple-400 text-xs font-mono uppercase tracking-widest">
-                ⚡ Optimized for LLMs & RAG
-            </div>
-            <h1 class="text-5xl md:text-8xl font-black mb-6 leading-none tracking-tight">
-                Scrape <span class="relative italic text-purple-500">any
-                    <svg class="absolute -bottom-2 left-0 w-full h-4" viewBox="0 0 100 10" preserveAspectRatio="none">
-                        <path class="scribble-path" d="M0,5 Q25,0 50,5 T100,5" stroke="currentColor" stroke-width="4" fill="none" />
-                    </svg>
-                </span> article.
-            </h1>
-            <p class="text-gray-400 text-xl max-w-2xl mx-auto">
-                Cheaper. Smarter. Faster. Convert chaotic URLs into clean Markdown for your AI agents.
-            </p>
-        </header>
+  </header>  <main class="max-w-7xl mx-auto px-5 md:px-8 py-10 md:py-16">
+    <section class="grid lg:grid-cols-2 gap-10 items-start">
+      <div class="relative">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full chip text-xs font-bold uppercase tracking-[0.22em] mb-6">
+          <span class="inline-block w-2 h-2 rounded-full bg-green-400"></span>
+          Public beta · developer infrastructure
+        </div><h1 class="section-title text-5xl md:text-7xl font-black leading-[0.95] tracking-tight max-w-3xl">
+      Convert public web pages into <span class="text-purple-400">clean Markdown</span> for agents.
+    </h1>
 
-        <div class="mt-8 flex flex-wrap justify-center gap-4 mb-10">
-            <button onclick="quickTest('wiki')" class="px-5 py-2 border-2 border-dashed border-purple-500 rounded-xl hover:bg-purple-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">👻 Wiki</button>
-            <button onclick="quickTest('docs')" class="px-5 py-2 border-2 border-dashed border-blue-500 rounded-xl hover:bg-blue-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">📚 Docs</button>
-            <button onclick="quickTest('blog')" class="px-5 py-2 border-2 border-dashed border-green-500 rounded-xl hover:bg-green-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">📝 Blog</button>
-            <button onclick="quickTest('news')" class="px-5 py-2 border-2 border-dashed border-red-500 rounded-xl hover:bg-red-500/10 transition-all text-xs font-bold uppercase tracking-widest hand">🗞️ News</button>
-        </div>
+    <p class="mt-6 text-slate-400 text-lg md:text-xl leading-8 max-w-2xl">
+      Ghost Scrape turns messy HTML into a structured, LLM-ready format so your search pipelines, RAG systems, and agents get usable context.
+    </p>
 
-        <section class="max-w-3xl mx-auto mb-20">
-            <div class="glass p-2 rounded-3xl flex items-center shadow-2xl focus-within:ring-2 ring-purple-500/40 transition-all">
-                <div class="pl-4 text-gray-500"><i data-lucide="link" class="w-5 h-5"></i></div>
-                <input id="urlInput" type="text" placeholder="https://www.bbc.com/news/articles/c9d4dzwdp53o" 
-                       class="bg-transparent flex-1 p-4 outline-none text-lg">
-                <button id="scrapeBtn" onclick="handleScrape()" 
-                        class="bg-purple-600 hover:bg-purple-500 px-10 py-4 rounded-2xl font-black transition-all flex items-center gap-2 disabled:opacity-50">
-                    <span>Clean</span>
-                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <p id="usageHint" class="text-gray-500 text-xs mt-3 text-center">
-                Demo mode uses limited access. Logged-in users will use their API key automatically.
-            </p>
-        </section>
-
-        <section id="resultArea" class="hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div class="glass rounded-[2.5rem] overflow-hidden border-white/5">
-                <div class="px-8 py-5 border-b border-white/5 flex flex-wrap justify-between items-center bg-white/5 gap-4">
-                    <div class="flex flex-col gap-1">
-                        <div class="flex gap-6 text-[10px] mono text-gray-500 uppercase tracking-[0.2em]">
-                            <div>Words: <span id="wordCount" class="text-purple-400">0</span></div>
-                        </div>
-                        <div id="sourceInfo" class="flex items-center gap-2 text-xs"></div>
-                    </div>
-                    <div class="flex gap-3">
-                        <button onclick="toggleView()" id="toggleBtn" class="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 transition-all">
-                            Show Formatted
-                        </button>
-                        <button onclick="copyToClipboard()" class="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Copy Content">
-                            <i data-lucide="copy" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="downloadMd()" class="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-xs font-black hover:bg-purple-400 transition-colors">
-                            <i data-lucide="download" class="w-4 h-4"></i> .MD
-                        </button>
-                    </div>
-                </div>
-                <div class="p-10 max-h-[600px] overflow-y-auto custom-scrollbar bg-black/40">
-                    <h2 id="articleTitle" class="text-4xl font-black mb-8 text-white leading-tight"></h2>
-                    
-                    <div id="rawContent" class="mono text-sm text-gray-400 whitespace-pre-wrap leading-relaxed"></div>
-                    <div id="formattedContent" class="hidden prose prose-invert max-w-none"></div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <footer class="mt-20 py-12 border-t border-white/5 text-center">
-        <div class="mb-4 flex justify-center gap-6">
-                       <a href="mailto:support@ghost-scrape.tech?subject=Ghost%20Scrape%20Support&body=Hi%20Ghost%20Scrape%20team%2C"
-   class="hover:text-purple-400 flex items-center gap-1">
-    <i data-lucide="mail" class="w-4 h-4"></i>
-    Contact
-</a>
-            <a href="https://github.com/Ghost-Scrape/Ghost-Scrape.io" target="_blank" class="hover:text-purple-400 transition-colors flex items-center gap-1">
-                <i data-lucide="github" class="w-4 h-4"></i> GitHub
-            </a>
-            <a href="/privacy.html" class="hover:text-purple-400 text-xs">
-    Privacy Policy
-</a>
-        </div>
-        <p class="text-gray-600 text-[10px] font-mono tracking-[0.3em]">
-            &copy; 2026 GHOST-SCRAPE.TECH — <span class="text-gray-400 tracking-normal">POWERING AI AGENTS</span>
-        </p>
-    </footer>
-
-    <div id="modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
-        <div class="glass w-full max-w-lg rounded-3xl p-6 md:p-8 border-white/10 shadow-2xl">
-            <div class="flex items-center justify-between mb-4">
-                <h3 id="modalTitle" class="text-2xl font-black tracking-tight"></h3>
-                <button onclick="closeModal()" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <div id="modalBody" class="text-gray-300 text-sm leading-7"></div>
-            <div class="mt-6 flex justify-end gap-3">
-                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm font-bold">
-                    Close
-                </button>
-            </div>
-        </div>
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a href="#playground" class="px-5 py-3 rounded-2xl btn-primary font-bold">Try the API</a>
+      <a href="/docs.html" class="px-5 py-3 rounded-2xl btn-ghost subtle-border font-bold">Read docs</a>
+      <a href="/status.html" class="px-5 py-3 rounded-2xl btn-ghost subtle-border font-bold">Status</a>
     </div>
 
-    <script>
-        let ghostMarkdown = "";
-        let isFormattedMode = false;
+    <div class="mt-8 grid sm:grid-cols-3 gap-3">
+      <div class="glass rounded-2xl p-4">
+        <div class="text-xs uppercase tracking-widest text-slate-500 mb-2">Input</div>
+        <div class="font-black text-white">URL</div>
+        <div class="text-sm text-slate-400 mt-1">One page at a time.</div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="text-xs uppercase tracking-widest text-slate-500 mb-2">Output</div>
+        <div class="font-black text-white">Markdown</div>
+        <div class="text-sm text-slate-400 mt-1">Clean, compact, AI-ready.</div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="text-xs uppercase tracking-widest text-slate-500 mb-2">Auth</div>
+        <div class="font-black text-white">API key</div>
+        <div class="text-sm text-slate-400 mt-1">Simple header-based access.</div>
+      </div>
+    </div>
+  </div>
 
-        const testUrls = {
-            wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
-            docs: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status",
-            blog: "https://overreacted.io/the-wet-codebase/",
-            news: "https://www.bbc.com/news/articles/c9d4dzwdp53o"
-        };
+  <div class="glass rounded-[2rem] p-4 md:p-5 soft-shadow">
+    <div class="rounded-[1.5rem] border border-white/10 bg-black/40 p-4 md:p-5">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Developer integration</div>
+          <div class="text-2xl font-black">Copy, paste, ship</div>
+        </div>
+        <div class="text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400">POST JSON</div>
+      </div>
 
+      <div class="flex items-center gap-2 mb-4 overflow-x-auto safe-scroll pb-1">
+        <button class="tab-btn tab-active px-4 py-2 rounded-xl text-sm font-bold transition-colors" data-tab="python">Python</button>
+        <button class="tab-btn tab-inactive px-4 py-2 rounded-xl text-sm font-bold transition-colors" data-tab="javascript">JavaScript</button>
+        <button class="tab-btn tab-inactive px-4 py-2 rounded-xl text-sm font-bold transition-colors" data-tab="curl">cURL</button>
+        <button class="tab-btn tab-inactive px-4 py-2 rounded-xl text-sm font-bold transition-colors" data-tab="env">.env</button>
+      </div>
+
+      <div id="tab-python" class="tab-panel">
+        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>import os
+
+import requests from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("GHOST_API_KEY") URL = "https://example.com/article"
+
+res = requests.post( "https://ghost-scrape.tech/api/scrape", headers={ "x-api-key": API_KEY, "Content-Type": "application/json" }, json={"url": URL} )
+
+data = res.json() print(data["markdown"])</code></pre> </div>
+
+<div id="tab-javascript" class="tab-panel hidden">
+        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>import dotenv from "dotenv";
+
+dotenv.config();
+
+const API_KEY = process.env.GHOST_API_KEY; const URL = "https://example.com/article";
+
+const res = await fetch("https://ghost-scrape.tech/api/scrape", { method: "POST", headers: { "x-api-key": API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ url: URL }) });
+
+const data = await res.json(); console.log(data.markdown);</code></pre> </div>
+
+<div id="tab-curl" class="tab-panel hidden">
+        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>curl -X POST "https://ghost-scrape.tech/api/scrape" \
+
+-H "Content-Type: application/json" 
+-H "x-api-key: YOUR_KEY" 
+-d '{"url":"https://example.com/article"}'</code></pre> </div>
+
+<div id="tab-env" class="tab-panel hidden">
+        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code># .env
+
+GHOST_API_KEY=ghost_xxxxxxxxxxxxxxxxx
+
+Python files
+
+app.py or main.py
+
+JavaScript files
+
+index.js or app.mjs</code></pre>
+
+</div>
+
+      <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm text-slate-400">
+        <div class="codebox rounded-2xl p-4">
+          <div class="font-bold text-white mb-1">Where to keep what</div>
+          <div>.env → your API key</div>
+          <div>Python/JS file → request code</div>
+        </div>
+        <div class="codebox rounded-2xl p-4">
+          <div class="font-bold text-white mb-1">Official contract</div>
+          <div>POST /api/scrape</div>
+          <div>Header: x-api-key</div>
+          <div>Body: { url }</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="playground" class="mt-12 grid lg:grid-cols-[1.15fr_.85fr] gap-6 items-start">
+  <div class="glass rounded-[2rem] p-5 md:p-6">
+    <div class="flex items-center justify-between gap-4 mb-5">
+      <div>
+        <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">API playground</div>
+        <h2 class="text-2xl md:text-3xl font-black">Test the live scraper</h2>
+      </div>
+      <div id="liveBadge" class="text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400">Anonymous demo</div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-3">
+      <div class="flex-1 flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 bg-black">
+        <i data-lucide="link" class="w-5 h-5 text-slate-500"></i>
+        <input id="urlInput" type="text" placeholder="https://example.com/article" class="bg-transparent outline-none w-full text-sm md:text-base">
+      </div>
+      <button id="scrapeBtn" onclick="handleScrape()" class="px-6 py-3 rounded-2xl btn-primary font-black flex items-center justify-center gap-2">
+        <span>Scrape</span>
+        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <div class="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+      <div id="usageHint">Demo mode is limited server-side.</div>
+      <div class="flex gap-3">
+        <a href="/docs.html" class="hover:text-white">Docs</a>
+        <a href="/login.html" class="hover:text-white">API key</a>
+      </div>
+    </div>
+
+    <div class="mt-5 grid sm:grid-cols-2 gap-3 text-sm">
+      <button onclick="quickTest('wiki')" class="px-4 py-3 rounded-2xl border border-dashed border-purple-500/50 hover:bg-purple-500/10 transition-colors">Wiki</button>
+      <button onclick="quickTest('docs')" class="px-4 py-3 rounded-2xl border border-dashed border-blue-500/50 hover:bg-blue-500/10 transition-colors">Docs</button>
+      <button onclick="quickTest('blog')" class="px-4 py-3 rounded-2xl border border-dashed border-green-500/50 hover:bg-green-500/10 transition-colors">Blog</button>
+      <button onclick="quickTest('news')" class="px-4 py-3 rounded-2xl border border-dashed border-red-500/50 hover:bg-red-500/10 transition-colors">News</button>
+    </div>
+  </div>
+
+  <div class="glass rounded-[2rem] p-5 md:p-6">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Response</div>
+        <h2 class="text-2xl font-black">Markdown preview</h2>
+      </div>
+      <button onclick="toggleView()" id="toggleBtn" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black uppercase tracking-widest">Formatted</button>
+    </div>
+
+    <div class="codebox rounded-[1.5rem] overflow-hidden">
+      <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between text-xs text-slate-500">
+        <span id="resultMeta">Waiting for a request</span>
+        <span id="resultSource"></span>
+      </div>
+      <div class="p-4 md:p-5 max-h-[560px] overflow-y-auto safe-scroll bg-black/30">
+        <h3 id="articleTitle" class="text-xl font-black mb-3"></h3>
+        <div id="rawContent" class="mono text-sm text-slate-300 whitespace-pre-wrap leading-7"></div>
+        <div id="formattedContent" class="hidden prose prose-invert max-w-none"></div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+      <div class="codebox rounded-2xl p-4">
+        <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Words</div>
+        <div id="wordCount" class="text-2xl font-black">0</div>
+      </div>
+      <div class="codebox rounded-2xl p-4">
+        <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Source</div>
+        <div id="sourceText" class="text-2xl font-black">—</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="mt-12 grid lg:grid-cols-3 gap-5">
+  <div class="glass rounded-[1.75rem] p-6">
+    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Why it exists</div>
+    <h3 class="text-xl font-black mb-2">Search results are messy</h3>
+    <p class="text-slate-400 leading-7">Ghost Scrape strips clutter and returns text that downstream systems can actually use.</p>
+  </div>
+  <div class="glass rounded-[1.75rem] p-6">
+    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Designed for</div>
+    <h3 class="text-xl font-black mb-2">Agents and RAG</h3>
+    <p class="text-slate-400 leading-7">Use it as a preprocessing layer before prompt construction or indexing.</p>
+  </div>
+  <div class="glass rounded-[1.75rem] p-6">
+    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Developer trust</div>
+    <h3 class="text-xl font-black mb-2">Docs, status, limits</h3>
+    <p class="text-slate-400 leading-7">The site exposes the surfaces users expect from a real API product.</p>
+  </div>
+</section>
+
+  </main>  <footer class="max-w-7xl mx-auto px-5 md:px-8 py-10 border-t border-white/5 mt-14 flex flex-col md:flex-row gap-4 items-center justify-between text-sm text-slate-500">
+    <div class="flex items-center gap-3">
+      <span>Ghost Scrape</span>
+      <span class="hidden md:inline text-slate-700">•</span>
+      <span class="hidden md:inline">AI-ready web extraction API</span>
+    </div>
+    <div class="flex flex-wrap gap-4">
+      <a href="/docs.html" class="hover:text-white">Docs</a>
+      <a href="/status.html" class="hover:text-white">Status</a>
+      <a href="/terms.html" class="hover:text-white">Terms</a>
+      <a href="mailto:support@ghost-scrape.tech" class="hover:text-white">Contact</a>
+    </div>
+  </footer>  <script>
+    marked.setOptions({ breaks: true, gfm: true });
+
+    const testUrls = {
+      wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      docs: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status",
+      blog: "https://overreacted.io/the-wet-codebase/",
+      news: "https://www.bbc.com/news/articles/c9d4dzwdp53o"
+    };
+
+    let ghostMarkdown = "";
+    let formattedMode = false;
+
+    function getApiKey() {
+      return localStorage.getItem("ghost_api_key") || "";
+    }
+
+    async function safeJson(res) {
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); }
+      catch { throw new Error(text || "Invalid server response"); }
+    }
+
+    function quickTest(type) {
+      document.getElementById("urlInput").value = testUrls[type];
+      handleScrape();
+    }
+
+    function setBadge() {
+      const apiKey = getApiKey();
+      const badge = document.getElementById("liveBadge");
+      const hint = document.getElementById("usageHint");
+
+      if (apiKey) {
+        badge.textContent = "Authenticated";
+        badge.className = "text-xs px-3 py-1 rounded-full border border-green-500/30 text-green-400";
+        hint.textContent = "Signed in users use the same API contract, with higher limits.";
+      } else {
+        badge.textContent = "Anonymous demo";
+        badge.className = "text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400";
+        hint.textContent = "Demo mode is limited server-side.";
+      }
+    }
+
+    function toggleView() {
+      formattedMode = !formattedMode;
+      const raw = document.getElementById("rawContent");
+      const formatted = document.getElementById("formattedContent");
+      const btn = document.getElementById("toggleBtn");
+
+      if (formattedMode) {
+        raw.classList.add("hidden");
+        formatted.classList.remove("hidden");
+        formatted.innerHTML = marked.parse(ghostMarkdown || "");
+        btn.textContent = "Raw";
+      } else {
+        raw.classList.remove("hidden");
+        formatted.classList.add("hidden");
+        btn.textContent = "Formatted";
+      }
+    }
+
+    async function handleScrape() {
+      const btn = document.getElementById("scrapeBtn");
+      const url = document.getElementById("urlInput").value.trim();
+      if (!url) {
+        alert("Please enter a URL.");
+        return;
+      }
+
+      btn.disabled = true;
+      const old = btn.innerHTML;
+      btn.innerHTML = `<div class="loader"></div>`;
+
+      try {
+        const apiKey = getApiKey();
+        const endpoint = apiKey ? "/api/scrape" : "/api/demo";
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(apiKey ? { "x-api-key": apiKey } : {})
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await safeJson(res);
+
+        if (!res.ok) {
+          throw new Error(data.error || `Request failed with status ${res.status}`);
+        }
+
+        ghostMarkdown = data.markdown || "";
+        document.getElementById("articleTitle").textContent = data.title || "Extracted content";
+        document.getElementById("rawContent").textContent = data.markdown || "";
+        document.getElementById("formattedContent").innerHTML = marked.parse(ghostMarkdown || "");
+        document.getElementById("wordCount").textContent = data.wordCount || 0;
+        document.getElementById("sourceText").textContent = data.source || "engine";
+        document.getElementById("resultMeta").textContent = `${data.domain || ""} · ${data.wasBlocked ? "bypass used" : "direct access"}`;
+
+        const source = document.getElementById("resultSource");
+        source.textContent = data.wasBlocked ? "blocked target" : "clean target";
+
+        document.getElementById("resultArea").classList.remove("hidden");
+        document.getElementById("resultArea").scrollIntoView({ behavior: "smooth", block: "start" });
+
+        formattedMode = false;
+        document.getElementById("rawContent").classList.remove("hidden");
+        document.getElementById("formattedContent").classList.add("hidden");
+        document.getElementById("toggleBtn").textContent = "Formatted";
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Backend unavailable");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = old;
         lucide.createIcons();
+      }
+    }
 
-        function openModal(title, body) {
-            document.getElementById("modalTitle").innerText = title;
-            document.getElementById("modalBody").innerHTML = body;
-            document.getElementById("modal").classList.remove("hidden");
-            lucide.createIcons();
-        }
+    function copyToClipboard() {
+      if (!ghostMarkdown) return;
+      navigator.clipboard.writeText(ghostMarkdown);
+      alert("Copied markdown");
+    }
 
-        function closeModal() {
-            document.getElementById("modal").classList.add("hidden");
-        }
+    function downloadMd() {
+      if (!ghostMarkdown) return;
+      const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ghost-scrape-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
 
-        function openPricing() {
-            openModal(
-                "Pricing",
-                `
-                <div class="space-y-3">
-                    <div class="glass rounded-2xl p-4">
-                        <div class="font-bold text-white">Free</div>
-                        <div class="text-purple-400 font-black text-xl">1 UI request</div>
-                        <div class="text-gray-400 mt-1">Demo access for testing</div>
-                    </div>
-                    <div class="glass rounded-2xl p-4">
-                        <div class="font-bold text-white">Logged In</div>
-                        <div class="text-purple-400 font-black text-xl">3 UI requests + API key</div>
-                        <div class="text-gray-400 mt-1">Beta access for developers</div>
-                    </div>
-                </div>
-                `
-            );
-        }
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => {
+          b.classList.remove("tab-active");
+          b.classList.add("tab-inactive");
+        });
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+        btn.classList.add("tab-active");
+        btn.classList.remove("tab-inactive");
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.remove("hidden");
+      });
+    });
 
-        function openAPI() {
-            const displayKey = localStorage.getItem("ghost_api_key") || "Not logged in";
-            openModal(
-                "API Access",
-                `
-                <div class="space-y-4">
-                    <div>
-                        <div class="text-gray-400 mb-2">Your API key</div>
-                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-purple-300">${displayKey}</code>
-                    </div>
-                    <div>
-                        <div class="text-gray-400 mb-2">Example request header</div>
-                        <code class="block w-full overflow-x-auto glass rounded-2xl p-4 text-green-300">x-api-key: YOUR_KEY</code>
-                    </div>
-                    <p class="text-gray-400">Use this key to access <code>/api/demo</code> or your protected API routes.</p>
-                </div>
-                `
-            );
-        }
-
-        function getUsageLimit() {
-            const apiKey = localStorage.getItem("ghost_api_key");
-            return apiKey ? 3 : 1;
-        }
-
-        function getUsageCount() {
-            return parseInt(localStorage.getItem("ghost_usage") || "0", 10);
-        }
-
-        function incrementUsage() {
-            const count = getUsageCount() + 1;
-            localStorage.setItem("ghost_usage", String(count));
-        }
-
-        function updateNavbar() {
-            const key = localStorage.getItem("ghost_api_key");
-            const loginLink = document.getElementById("loginLink");
-            const usageHint = document.getElementById("usageHint");
-
-            if (key && loginLink) {
-                loginLink.innerText = "Logged In";
-                loginLink.classList.add("text-green-400");
-                if (usageHint) usageHint.innerText = "Logged-in users can use the UI 3 times.";
-            }
-        }
-
-        function updateUsageHint() {
-            const limit = getUsageLimit();
-            const used = getUsageCount();
-            const usageHint = document.getElementById("usageHint");
-            if (usageHint) {
-                usageHint.innerText = `UI usage: ${used}/${limit}`;
-            }
-        }
-
-        function quickTest(type) {
-            document.getElementById('urlInput').value = testUrls[type];
-            handleScrape();
-        }
-
-        function toggleView() {
-            isFormattedMode = !isFormattedMode;
-            const raw = document.getElementById('rawContent');
-            const formatted = document.getElementById('formattedContent');
-            const btn = document.getElementById('toggleBtn');
-
-            if (isFormattedMode) {
-                raw.classList.add('hidden');
-                formatted.classList.remove('hidden');
-                formatted.innerHTML = marked.parse(ghostMarkdown);
-                btn.innerText = "Show Raw Text";
-            } else {
-                raw.classList.remove('hidden');
-                formatted.classList.add('hidden');
-                btn.innerText = "Show Formatted";
-            }
-        }
-
-        async function handleScrape() {
-            const btn = document.getElementById('scrapeBtn');
-            const urlInput = document.getElementById('urlInput');
-            const url = urlInput.value.trim();
-            
-            if (!url) {
-                alert("Please enter a URL.");
-                return;
-            }
-
-            const limit = getUsageLimit();
-            const used = getUsageCount();
-
-            if (used >= limit) {
-                alert("Usage limit reached. Login to unlock more.");
-                return;
-            }
-
-            btn.disabled = true;
-            const originalContent = btn.innerHTML;
-            btn.innerHTML = `<div class="loader"></div>`;
-
-            try {
-                const apiKey = localStorage.getItem("ghost_api_key") || "";
-                const endpoint = apiKey ? "/api/scrape" : "/api/demo";
-                const response = await fetch(
-                    `${endpoint}?url=${encodeURIComponent(url)}`,
-                    {
-                        headers: {
-                            "x-api-key": apiKey
-                        }
-                    }
-                );
-
-                const data = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    throw new Error(data.error || `Request failed with status ${response.status}`);
-                }
-
-                if (data.success) {
-                    ghostMarkdown = data.markdown || "";
-                    incrementUsage();
-                    updateUsageHint();
-                    
-                    document.getElementById('articleTitle').innerText = data.title || "Extracted Content";
-                    document.getElementById('rawContent').innerText = data.markdown || "";
-                    document.getElementById('wordCount').innerText = data.wordCount || 0;
-
-                    const stealthBadge = data.wasBlocked
-                        ? `<span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded">Stealth Bypass Used</span>`
-                        : `<span class="bg-green-500/20 text-green-400 text-[10px] px-2 py-1 rounded">Direct Access</span>`;
-
-                    document.getElementById('sourceInfo').innerHTML = `${data.source || "Ghost Engine"} ${stealthBadge}`;
-
-                    isFormattedMode = false;
-                    document.getElementById('rawContent').classList.remove('hidden');
-                    document.getElementById('formattedContent').classList.add('hidden');
-                    document.getElementById('toggleBtn').innerText = "Show Formatted";
-
-                    document.getElementById('resultArea').classList.remove('hidden');
-                    document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    alert(data.error || "Extraction failed. The ghost couldn't find the data.");
-                }
-            } catch (err) {
-                console.error(err);
-                alert(err?.message || "Connection lost. Backend unresponsive.");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
-                lucide.createIcons();
-            }
-        }
-
-        function copyToClipboard() {
-            if (!ghostMarkdown) return;
-            navigator.clipboard.writeText(ghostMarkdown);
-            const toast = document.createElement('div');
-            toast.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 bg-purple-600 px-6 py-3 rounded-full text-sm font-bold shadow-2xl z-50';
-            toast.innerText = 'Copied to clipboard! 👻';
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2000);
-        }
-
-        function downloadMd() {
-            if (!ghostMarkdown) return;
-            const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
-            const a = document.createElement("a");
-            const objectUrl = URL.createObjectURL(blob);
-            a.href = objectUrl;
-            a.download = `ghost-scrape-${Date.now()}.md`;
-            a.click();
-            URL.revokeObjectURL(objectUrl);
-        }
-
-        updateNavbar();
-        updateUsageHint();
-    </script>
-</body>
-</html>
+    lucide.createIcons();
+    setBadge();
+  </script></body>
+            </html>
