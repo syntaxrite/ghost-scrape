@@ -16,6 +16,8 @@ const {
   extractContent,
 } = require("../lib/extractor");
 
+const { logUsage } = require("../lib/usage");
+
 // -----------------------------
 // Validate API Key
 // -----------------------------
@@ -54,6 +56,15 @@ function getApiKey(req) {
   return auth.trim();
 }
 
+function getIp(req) {
+  const raw =
+    req.headers["x-forwarded-for"] ||
+    req.socket?.remoteAddress ||
+    "unknown";
+
+  return String(raw).split(",")[0].trim();
+}
+
 // -----------------------------
 // Parse request body safely
 // -----------------------------
@@ -84,6 +95,13 @@ module.exports = async (req, res) => {
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
   }
 
   try {
@@ -124,10 +142,18 @@ module.exports = async (req, res) => {
     }
 
     // -----------------------------
-    // 2. INPUT URL
+    // 2. INPUT URL (canonical contract)
     // -----------------------------
+    const contentType = String(req.headers["content-type"] || "");
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return res.status(415).json({
+        success: false,
+        error: "Content-Type must be application/json",
+      });
+    }
+
     const body = parseBody(req);
-    const url = body.url || req.query?.url;
+    const url = body.url;
 
     if (!url) {
       return res.status(400).json({
@@ -205,20 +231,7 @@ module.exports = async (req, res) => {
     // -----------------------------
     // 6. LOG USAGE (NON-BLOCKING)
     // -----------------------------
-    try {
-      const { error: usageError } = await supabase
-        .from("usage_log")
-        .insert({
-          user_id: userId,
-          endpoint: "/api/scrape",
-        });
-
-      if (usageError) {
-        console.error("USAGE LOG ERROR:", usageError);
-      }
-    } catch (err) {
-      console.error("USAGE LOG EXCEPTION:", err);
-    }
+    logUsage(apiKey, getIp(req), "/api/scrape").catch(() => {});
 
     // -----------------------------
     // 7. RESPONSE
