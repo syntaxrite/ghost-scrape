@@ -13,8 +13,7 @@
   <meta property="og:site_name" content="Ghost Scrape" />  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Ghost Scrape | AI-Ready Web Extraction API" />
   <meta name="twitter:description" content="Convert public URLs into clean Markdown for agents and developers." />
-  <meta name="twitter:image" content="https://ghost-scrape.tech/og-image.png" />  <title>Ghost Scrape | AI-Ready Web Extraction API</title>  <script src="https://cdn.tailwindcss.com"></script>  <link [...]
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <meta name="twitter:image" content="https://ghost-scrape.tech/og-image.png" />  <title>Ghost Scrape | AI-Ready Web Extraction API</title>  <script src="https://cdn.tailwindcss.com"></script>  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  <script type="application/ld+json">
@@ -189,317 +188,277 @@ import requests from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("GHOST_API_KEY") URL = "https://example.com/article"
+API_KEY = os.getenv("GHOST_API_KEY")
+URL = "https://example.com/article"
 
-res = requests.post( "https://ghost-scrape.tech/api/scrape", headers={ "x-api-key": API_KEY, "Content-Type": "application/json" }, json={"url": URL} )
+res = requests.post(
+  "https://ghost-scrape.tech/api/scrape",
+  headers={"x-api-key": API_KEY, "Content-Type": "application/json"},
+  json={"url": URL}
+)
 
-data = res.json() print(data["markdown"])</code></pre> </div>
+data = res.json()
+print(data["markdown"])</code></pre>
+      </div>
 
-<div id="tab-javascript" class="tab-panel hidden">
+      <div id="tab-javascript" class="tab-panel hidden">
         <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>import dotenv from "dotenv";
 
 dotenv.config();
 
-const API_KEY = process.env.GHOST_API_KEY; const URL = "https://example.com/article";
+const API_KEY = process.env.GHOST_API_KEY;
+const URL = "https://example.com/article";
 
-const res = await fetch("https://ghost-scrape.tech/api/scrape", { method: "POST", headers: { "x-api-key": API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ url: URL }) });
+const res = await fetch("https://ghost-scrape.tech/api/scrape", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": API_KEY
+  },
+  body: JSON.stringify({ url: URL })
+});
 
-const data = await res.json(); console.log(data.markdown);</code></pre> </div>
+const data = await res.json();
+console.log(data.markdown);</code></pre>
+      </div>
 
-<div id="tab-curl" class="tab-panel hidden">
+      <div id="tab-curl" class="tab-panel hidden">
         <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>curl -X POST "https://ghost-scrape.tech/api/scrape" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ghost_xxx" \
+  -d '{"url":"https://example.com/article"}'</code></pre>
+      </div>
 
--H "Content-Type: application/json" 
--H "x-api-key: YOUR_KEY" 
--d '{"url":"https://example.com/article"}'</code></pre> </div>
+      <div id="tab-env" class="tab-panel hidden">
+        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code>GHOST_API_KEY=ghost_xxx</code></pre>
+      </div>
+    </div>
 
-<div id="tab-env" class="tab-panel hidden">
-        <pre class="codebox rounded-2xl p-4 overflow-x-auto text-sm"><code># .env
-
-GHOST_API_KEY=ghost_xxxxxxxxxxxxxxxxx
-
-Python files
-
-app.py or main.py
-
-JavaScript files
-
-index.js or app.mjs</code></pre>
-
-</div>
-
-      <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm text-slate-400">
-        <div class="codebox rounded-2xl p-4">
-          <div class="font-bold text-white mb-1">Where to keep what</div>
-          <div>.env → your API key</div>
-          <div>Python/JS file → request code</div>
+    <div class="mt-5 rounded-[1.5rem] border border-white/10 bg-black/35 p-4 md:p-5">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Playground</div>
+          <div class="text-xl font-black">Try a URL now</div>
         </div>
-        <div class="codebox rounded-2xl p-4">
-          <div class="font-bold text-white mb-1">Official contract</div>
-          <div>POST /api/scrape</div>
-          <div>Header: x-api-key</div>
-          <div>Body: { url }</div>
+        <div class="text-xs text-slate-400">Uses <span class="mono">/api/scrape</span> if you have a key, otherwise <span class="mono">/api/demo</span>.</div>
+      </div>
+
+      <div class="mt-4 flex flex-col md:flex-row gap-3">
+        <input id="urlInput" class="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 outline-none" placeholder="https://example.com/article" />
+        <button id="scrapeBtn" onclick="handleScrape()" class="px-6 py-3 rounded-2xl btn-primary font-black">Scrape</button>
+      </div>
+
+      <div class="mt-3 flex items-center justify-between gap-3 flex-wrap">
+        <div class="text-xs text-slate-500">Tip: Use a public blog post or docs page for best results.</div>
+        <div id="demoHint" class="text-xs text-slate-500"></div>
+      </div>
+    </div>
+
+    <section id="resultArea" class="hidden mt-8">
+      <div class="glass rounded-[2rem] p-4 md:p-5">
+        <div class="flex items-start justify-between gap-6 flex-wrap">
+          <div>
+            <div id="articleTitle" class="text-2xl md:text-3xl font-black">Extracted content</div>
+            <div id="resultMeta" class="text-sm text-slate-400 mt-1"></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="toggleBtn" onclick="toggleView()" class="px-4 py-2 rounded-xl btn-ghost subtle-border text-sm font-bold">Formatted</button>
+            <button onclick="copyToClipboard()" class="px-4 py-2 rounded-xl btn-ghost subtle-border text-sm font-bold">Copy</button>
+            <button onclick="downloadMd()" class="px-4 py-2 rounded-xl btn-ghost subtle-border text-sm font-bold">Download</button>
+          </div>
+        </div>
+
+        <div class="mt-5 grid md:grid-cols-3 gap-3">
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Words</div>
+            <div class="text-2xl font-black"><span id="wordCount">0</span></div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Source</div>
+            <div class="text-2xl font-black" id="sourceText">engine</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Result</div>
+            <div class="text-2xl font-black" id="resultSource">clean target</div>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Output</div>
+          </div>
+
+          <div class="rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
+            <pre id="rawContent" class="safe-scroll text-sm whitespace-pre-wrap"></pre>
+            <div id="formattedContent" class="hidden"></div>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </section>
 
-<section id="playground" class="mt-12 grid lg:grid-cols-[1.15fr_.85fr] gap-6 items-start">
-  <div class="glass rounded-[2rem] p-5 md:p-6">
-    <div class="flex items-center justify-between gap-4 mb-5">
-      <div>
-        <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">API playground</div>
-        <h2 class="text-2xl md:text-3xl font-black">Test the live scraper</h2>
-      </div>
-      <div id="liveBadge" class="text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400">Anonymous demo</div>
+<footer class="max-w-7xl mx-auto px-5 md:px-8 py-12 text-sm text-slate-500">
+  <div class="flex flex-wrap gap-4 justify-between border-t border-white/5 pt-8">
+    <div>
+      <div class="font-black text-white">Ghost Scrape</div>
+      <div class="text-slate-500">AI-ready extraction for developers</div>
     </div>
-
-    <div class="flex flex-col md:flex-row gap-3">
-      <div class="flex-1 flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 bg-black">
-        <i data-lucide="link" class="w-5 h-5 text-slate-500"></i>
-        <input id="urlInput" type="text" placeholder="https://example.com/article" class="bg-transparent outline-none w-full text-sm md:text-base">
-      </div>
-      <button id="scrapeBtn" onclick="handleScrape()" class="px-6 py-3 rounded-2xl btn-primary font-black flex items-center justify-center gap-2">
-        <span>Scrape</span>
-        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-      </button>
-    </div>
-
-    <div class="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-      <div id="usageHint">Demo mode is limited server-side.</div>
-      <div class="flex gap-3">
-        <a href="/docs.html" class="hover:text-white">Docs</a>
-        <a href="/login.html" class="hover:text-white">API key</a>
-      </div>
-    </div>
-
-    <div class="mt-5 grid sm:grid-cols-2 gap-3 text-sm">
-      <button onclick="quickTest('wiki')" class="px-4 py-3 rounded-2xl border border-dashed border-purple-500/50 hover:bg-purple-500/10 transition-colors">Wiki</button>
-      <button onclick="quickTest('docs')" class="px-4 py-3 rounded-2xl border border-dashed border-blue-500/50 hover:bg-blue-500/10 transition-colors">Docs</button>
-      <button onclick="quickTest('blog')" class="px-4 py-3 rounded-2xl border border-dashed border-green-500/50 hover:bg-green-500/10 transition-colors">Blog</button>
-      <button onclick="quickTest('news')" class="px-4 py-3 rounded-2xl border border-dashed border-red-500/50 hover:bg-red-500/10 transition-colors">News</button>
+    <div class="flex gap-4">
+      <a href="/docs.html" class="hover:text-white">Docs</a>
+      <a href="/status.html" class="hover:text-white">Status</a>
+      <a href="/terms.html" class="hover:text-white">Terms</a>
+      <a href="/login.html" class="hover:text-white">Login</a>
     </div>
   </div>
+</footer>
 
-  <div class="glass rounded-[2rem] p-5 md:p-6">
-    <div class="flex items-center justify-between mb-5">
-      <div>
-        <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Response</div>
-        <h2 class="text-2xl font-black">Markdown preview</h2>
-      </div>
-      <button onclick="toggleView()" id="toggleBtn" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black uppercase tracking-widest">Formatted</button>
-    </div>
+<script>
+  let ghostMarkdown = "";
+  let formattedMode = false;
 
-    <div class="codebox rounded-[1.5rem] overflow-hidden">
-      <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between text-xs text-slate-500">
-        <span id="resultMeta">Waiting for a request</span>
-        <span id="resultSource"></span>
-      </div>
-      <div class="p-4 md:p-5 max-h-[560px] overflow-y-auto safe-scroll bg-black/30">
-        <h3 id="articleTitle" class="text-xl font-black mb-3"></h3>
-        <div id="rawContent" class="mono text-sm text-slate-300 whitespace-pre-wrap leading-7"></div>
-        <div id="formattedContent" class="hidden prose prose-invert max-w-none"></div>
-      </div>
-    </div>
+  function getApiKey() {
+    return localStorage.getItem("ghost_api_key");
+  }
 
-    <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
-      <div class="codebox rounded-2xl p-4">
-        <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Words</div>
-        <div id="wordCount" class="text-2xl font-black">0</div>
-      </div>
-      <div class="codebox rounded-2xl p-4">
-        <div class="text-xs uppercase tracking-widest text-slate-500 mb-1">Source</div>
-        <div id="sourceText" class="text-2xl font-black">—</div>
-      </div>
-    </div>
-  </div>
-</section>
+  function setDemoHint(isDemo) {
+    const hint = document.getElementById("demoHint");
+    if (!hint) return;
+    if (isDemo) {
+      hint.textContent = "Demo mode is limited server-side.";
+    } else {
+      hint.textContent = "";
+    }
+  }
 
-<section class="mt-12 grid lg:grid-cols-3 gap-5">
-  <div class="glass rounded-[1.75rem] p-6">
-    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Why it exists</div>
-    <h3 class="text-xl font-black mb-2">Search results are messy</h3>
-    <p class="text-slate-400 leading-7">Ghost Scrape strips clutter and returns text that downstream systems can actually use.</p>
-  </div>
-  <div class="glass rounded-[1.75rem] p-6">
-    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Designed for</div>
-    <h3 class="text-xl font-black mb-2">Agents and RAG</h3>
-    <p class="text-slate-400 leading-7">Use it as a preprocessing layer before prompt construction or indexing.</p>
-  </div>
-  <div class="glass rounded-[1.75rem] p-6">
-    <div class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-2">Developer trust</div>
-    <h3 class="text-xl font-black mb-2">Docs, status, limits</h3>
-    <p class="text-slate-400 leading-7">The site exposes the surfaces users expect from a real API product.</p>
-  </div>
-</section>
+  function toggleView() {
+    formattedMode = !formattedMode;
+    const raw = document.getElementById("rawContent");
+    const formatted = document.getElementById("formattedContent");
+    const btn = document.getElementById("toggleBtn");
 
-  </main>
+    if (formattedMode) {
+      raw.classList.add("hidden");
+      formatted.classList.remove("hidden");
+      formatted.innerHTML = marked.parse(ghostMarkdown || "");
+      btn.textContent = "Raw";
+    } else {
+      raw.classList.remove("hidden");
+      formatted.classList.add("hidden");
+      btn.textContent = "Formatted";
+    }
+  }
 
-  <footer class="mt-20 py-12 border-t border-white/5 text-center text-gray-500 text-xs">
-    <div class="flex justify-center gap-6 mb-4">
-      <a href="/docs.html" class="hover:text-purple-400">Docs</a>
-      <a href="/status.html" class="hover:text-purple-400">Status</a>
-      <a href="/privacy.html" class="hover:text-purple-400">Privacy</a>
-      <a href="/terms.html" class="hover:text-purple-400">Terms</a>
-    </div>
+  async function safeJson(res) {
+    const contentType = String(res.headers.get("content-type") || "");
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return {};
+    }
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
+  }
 
-    <p>© 2026 Ghost Scrape</p>
-  </footer>
-
-  <script>
-    marked.setOptions({ breaks: true, gfm: true });
-
-    const testUrls = {
-      wiki: "https://en.wikipedia.org/wiki/Artificial_intelligence",
-      docs: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status",
-      blog: "https://overreacted.io/the-wet-codebase/",
-      news: "https://www.bbc.com/news/articles/c9d4dzwdp53o"
-    };
-
-    let ghostMarkdown = "";
-    let formattedMode = false;
-
-    function getApiKey() {
-      return localStorage.getItem("ghost_api_key") || "";
+  async function handleScrape() {
+    const btn = document.getElementById("scrapeBtn");
+    const url = document.getElementById("urlInput").value.trim();
+    if (!url) {
+      alert("Please enter a URL.");
+      return;
     }
 
-    async function safeJson(res) {
-      const text = await res.text();
-      if (!text) return {};
-      try { return JSON.parse(text); }
-      catch { throw new Error(text || "Invalid server response"); }
-    }
+    btn.disabled = true;
+    const old = btn.innerHTML;
+    btn.innerHTML = `<div class="loader"></div>`;
 
-    function quickTest(type) {
-      document.getElementById("urlInput").value = testUrls[type];
-      handleScrape();
-    }
-
-    function setBadge() {
+    try {
       const apiKey = getApiKey();
-      const badge = document.getElementById("liveBadge");
-      const hint = document.getElementById("usageHint");
+      const endpoint = apiKey ? "/api/scrape" : "/api/demo";
+      setDemoHint(!apiKey);
 
-      if (apiKey) {
-        badge.textContent = "Authenticated";
-        badge.className = "text-xs px-3 py-1 rounded-full border border-green-500/30 text-green-400";
-        hint.textContent = "Signed in users use the same API contract, with higher limits.";
-      } else {
-        badge.textContent = "Anonymous demo";
-        badge.className = "text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400";
-        hint.textContent = "Demo mode is limited server-side.";
-      }
-    }
-
-    function toggleView() {
-      formattedMode = !formattedMode;
-      const raw = document.getElementById("rawContent");
-      const formatted = document.getElementById("formattedContent");
-      const btn = document.getElementById("toggleBtn");
-
-      if (formattedMode) {
-        raw.classList.add("hidden");
-        formatted.classList.remove("hidden");
-        formatted.innerHTML = marked.parse(ghostMarkdown || "");
-        btn.textContent = "Raw";
-      } else {
-        raw.classList.remove("hidden");
-        formatted.classList.add("hidden");
-        btn.textContent = "Formatted";
-      }
-    }
-
-    async function handleScrape() {
-      const btn = document.getElementById("scrapeBtn");
-      const url = document.getElementById("urlInput").value.trim();
-      if (!url) {
-        alert("Please enter a URL.");
-        return;
-      }
-
-      btn.disabled = true;
-      const old = btn.innerHTML;
-      btn.innerHTML = `<div class="loader"></div>`;
-
-      try {
-        const apiKey = getApiKey();
-        const endpoint = apiKey ? "/api/scrape" : "/api/demo";
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(apiKey ? { "x-api-key": apiKey } : {})
-          },
-          body: JSON.stringify({ url })
-        });
-
-        const data = await safeJson(res);
-
-        if (!res.ok) {
-          throw new Error(data.error || `Request failed with status ${res.status}`);
-        }
-
-        ghostMarkdown = data.markdown || "";
-        document.getElementById("articleTitle").textContent = data.title || "Extracted content";
-        document.getElementById("rawContent").textContent = data.markdown || "";
-        document.getElementById("formattedContent").innerHTML = marked.parse(ghostMarkdown || "");
-        document.getElementById("wordCount").textContent = data.wordCount || 0;
-        document.getElementById("sourceText").textContent = data.source || "engine";
-        document.getElementById("resultMeta").textContent = `${data.domain || ""} · ${data.wasBlocked ? "bypass used" : "direct access"}`;
-
-        const source = document.getElementById("resultSource");
-        source.textContent = data.wasBlocked ? "blocked target" : "clean target";
-
-        document.getElementById("resultArea").classList.remove("hidden");
-        document.getElementById("resultArea").scrollIntoView({ behavior: "smooth", block: "start" });
-
-        formattedMode = false;
-        document.getElementById("rawContent").classList.remove("hidden");
-        document.getElementById("formattedContent").classList.add("hidden");
-        document.getElementById("toggleBtn").textContent = "Formatted";
-      } catch (err) {
-        console.error(err);
-        alert(err.message || "Backend unavailable");
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = old;
-        lucide.createIcons();
-      }
-    }
-
-    function copyToClipboard() {
-      if (!ghostMarkdown) return;
-      navigator.clipboard.writeText(ghostMarkdown);
-      alert("Copied markdown");
-    }
-
-    function downloadMd() {
-      if (!ghostMarkdown) return;
-      const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ghost-scrape-${Date.now()}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    document.querySelectorAll(".tab-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(b => {
-          b.classList.remove("tab-active");
-          b.classList.add("tab-inactive");
-        });
-        document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
-        btn.classList.add("tab-active");
-        btn.classList.remove("tab-inactive");
-        document.getElementById(`tab-${btn.dataset.tab}`).classList.remove("hidden");
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "x-api-key": apiKey } : {})
+        },
+        body: JSON.stringify({ url })
       });
-    });
 
-    lucide.createIcons();
-    setBadge();
-  </script></body>
-            </html>
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed with status ${res.status}`);
+      }
+
+      ghostMarkdown = data.markdown ?? "";
+
+      if (!ghostMarkdown || ghostMarkdown.trim().length === 0) {
+        throw new Error("Empty content returned from scraper");
+      }
+
+      document.getElementById("articleTitle").textContent = data.title || "Extracted content";
+      document.getElementById("rawContent").textContent = data.markdown || "";
+      document.getElementById("formattedContent").innerHTML = marked.parse(ghostMarkdown || "");
+      document.getElementById("wordCount").textContent = data.wordCount || 0;
+      document.getElementById("sourceText").textContent = data.source || "engine";
+      document.getElementById("resultMeta").textContent = `${data.domain || ""} · ${data.wasBlocked ? "bypass used" : "direct access"}`;
+
+      const source = document.getElementById("resultSource");
+      source.textContent = data.wasBlocked ? "blocked target" : "clean target";
+
+      document.getElementById("resultArea").classList.remove("hidden");
+      document.getElementById("resultArea").scrollIntoView({ behavior: "smooth", block: "start" });
+
+      formattedMode = false;
+      document.getElementById("rawContent").classList.remove("hidden");
+      document.getElementById("formattedContent").classList.add("hidden");
+      document.getElementById("toggleBtn").textContent = "Formatted";
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Backend unavailable");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = old;
+      lucide.createIcons();
+    }
+  }
+
+  function copyToClipboard() {
+    if (!ghostMarkdown) return;
+    navigator.clipboard.writeText(ghostMarkdown);
+    alert("Copied markdown");
+  }
+
+  function downloadMd() {
+    if (!ghostMarkdown) return;
+    const blob = new Blob([ghostMarkdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ghost-scrape-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => {
+        b.classList.remove("tab-active");
+        b.classList.add("tab-inactive");
+      });
+      btn.classList.add("tab-active");
+      btn.classList.remove("tab-inactive");
+
+      const tab = btn.getAttribute("data-tab");
+      document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.add("hidden"));
+      document.getElementById(`tab-${tab}`).classList.remove("hidden");
+    });
+  });
+
+  lucide.createIcons();
+</script>
+</body>
+</html>
