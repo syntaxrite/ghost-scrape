@@ -1,124 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Dashboard | Ghost Scrape</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
+<meta charset="UTF-8">
+<title>Dashboard | Ghost Scrape</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script><style>
+body{
+  background:#050505;
+  color:white;
+  font-family:Inter,sans-serif;
+}
+</style></head><body class="min-h-screen"><!-- TOP BAR --><div class="border-b border-white/10 px-6 py-4 flex justify-between items-center">
+  <div class="font-black text-xl">Ghost Scrape</div>
+  <button onclick="logout()" class="text-sm text-red-400">Logout</button>
+</div><!-- MAIN --><div class="max-w-5xl mx-auto px-6 py-10">  <h1 class="text-3xl font-black mb-8">Developer Dashboard</h1>  <!-- GRID -->  <div class="grid md:grid-cols-3 gap-6"><!-- API KEY -->
+<div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+  <h2 class="font-bold mb-3">API Key</h2>
 
-<body class="bg-black text-white min-h-screen flex items-center justify-center">
-
-  <div class="w-full max-w-xl p-8 bg-white/5 rounded-2xl border border-white/10">
-
-    <h1 class="text-3xl font-black mb-6 text-center">Dashboard</h1>
-
-    <!-- LOADING -->
-    <div id="loading" class="text-center text-gray-400">
-      Loading...
-    </div>
-
-    <!-- NOT LOGGED IN -->
-    <div id="notLoggedIn" class="hidden text-center">
-      <p class="mb-4 text-gray-400">You are not logged in</p>
-      <a href="/login.html" class="bg-purple-600 px-6 py-3 rounded-xl font-bold hover:bg-purple-500">
-        Login
-      </a>
-    </div>
-
-    <!-- LOGGED IN -->
-    <div id="dashboard" class="hidden space-y-6">
-
-      <div>
-        <p class="text-sm text-gray-400">Email</p>
-        <p id="email" class="text-lg font-bold"></p>
-      </div>
-
-      <div>
-        <p class="text-sm text-gray-400">API Key</p>
-        <div class="flex gap-2">
-          <input id="apiKey" class="w-full p-3 bg-black border border-white/10 rounded-xl" readonly>
-          <button onclick="copyKey()" class="px-4 bg-white text-black rounded-xl font-bold">
-            Copy
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <p class="text-sm text-gray-400">Usage Today</p>
-        <p id="usage" class="text-2xl font-black"></p>
-      </div>
-
-      <div class="w-full bg-white/10 rounded-full h-3">
-        <div id="usageBar" class="bg-purple-500 h-3 rounded-full transition-all"></div>
-      </div>
-
-      <button onclick="logout()" class="w-full bg-red-600 py-3 rounded-xl font-bold hover:bg-red-500">
-        Logout
-      </button>
-
-    </div>
-
-    <p id="status" class="text-center text-sm text-gray-400 mt-4"></p>
-
+  <div class="bg-black p-3 rounded-xl text-xs break-all text-purple-300">
+    <span id="apiKey">Loading...</span>
   </div>
 
-<script>
-  const apiKey = localStorage.getItem("ghost_api_key");
+  <button onclick="copyKey()"
+    class="mt-3 w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-xl text-sm font-bold">
+    Copy Key
+  </button>
+</div>
 
-  if (!apiKey) {
-    showNotLoggedIn();
-  } else {
-    loadDashboard();
-  }
+<!-- USAGE -->
+<div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+  <h2 class="font-bold mb-3">Usage Today</h2>
 
-  function showNotLoggedIn() {
-    document.getElementById("loading").classList.add("hidden");
-    document.getElementById("notLoggedIn").classList.remove("hidden");
-  }
+  <div class="text-3xl font-black">
+    <span id="usage">0</span> / <span id="limit">10</span>
+  </div>
 
-  async function loadDashboard() {
-    try {
-        const res = await fetch(`/api/user/stats`, {
-          headers: { "x-api-key": apiKey }
-        });
+  <div class="w-full bg-white/10 h-2 rounded-full mt-4">
+    <div id="bar" class="h-2 bg-purple-600 rounded-full" style="width:0%"></div>
+  </div>
+</div>
 
-      const data = await res.json();
+<!-- QUICK START -->
+<div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+  <h2 class="font-bold mb-3">Quick Start</h2>
 
-      if (!res.ok || !data.success) {
-        localStorage.removeItem("ghost_api_key");
-        return showNotLoggedIn();
-      }
+  <pre class="text-xs bg-black p-3 rounded-xl overflow-x-auto">
 
-      document.getElementById("loading").classList.add("hidden");
-      document.getElementById("dashboard").classList.remove("hidden");
+POST /api/scrape
+x-api-key: YOUR_KEY
 
-      document.getElementById("email").innerText = data.email;
-      document.getElementById("apiKey").value = data.apiKey;
+{
+"url": "https://example.com"
+}
+</pre>
+</div>
 
-      document.getElementById("usage").innerText =
-        `${data.usageToday} / ${data.limit}`;
+  </div></div><script>
+const key = localStorage.getItem("ghost_api_key");
 
-      const percent = Math.min((data.usageToday / data.limit) * 100, 100);
-      document.getElementById("usageBar").style.width = percent + "%";
+if(!key){
+  window.location.href="/login.html";
+}
 
-    } catch (err) {
-      console.error(err);
-      document.getElementById("status").innerText = "Failed to load dashboard";
-      showNotLoggedIn();
-    }
-  }
+document.getElementById("apiKey").innerText = key;
 
-  function copyKey() {
-    const key = document.getElementById("apiKey").value;
-    navigator.clipboard.writeText(key);
-    alert("Copied API key");
-  }
+async function load(){
+  const res = await fetch("/api/user/stats",{
+    headers: {"x-api-key": key}
+  });
 
-  function logout() {
+  const data = await res.json();
+
+  if(!data.success){
     localStorage.removeItem("ghost_api_key");
-    window.location.reload();
+    window.location.href="/login.html";
   }
-</script>
 
-</body>
+  document.getElementById("usage").innerText = data.usageToday;
+  document.getElementById("limit").innerText = data.limit;
+
+  const pct = (data.usageToday / data.limit) * 100;
+  document.getElementById("bar").style.width = pct + "%";
+}
+
+load();
+
+function copyKey(){
+  navigator.clipboard.writeText(key);
+  alert("Copied");
+}
+
+function logout(){
+  localStorage.removeItem("ghost_api_key");
+  window.location.href="/login.html";
+}
+</script></body>
 </html>
