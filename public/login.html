@@ -1,156 +1,104 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Login | Ghost Scrape</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
+  <meta charset="UTF-8">
+  <title>Login | Ghost Scrape API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>  <style>
+    body {
+      background: #050505;
+      color: white;
+      font-family: Inter, sans-serif;
+    }
+  </style></head><body class="min-h-screen flex items-center justify-center px-6"><div class="w-full max-w-5xl grid md:grid-cols-2 gap-10">  <!-- LEFT PANEL -->  <div class="hidden md:flex flex-col justify-center">
+    <h1 class="text-5xl font-black mb-4">
+      Ghost Scrape API
+    </h1><p class="text-gray-400 text-lg leading-relaxed">
+  Convert any URL into clean, LLM-ready Markdown in milliseconds.
+  Built for developers, agents, and AI pipelines.
+</p>
 
-<body class="bg-black text-white min-h-screen flex items-center justify-center">
-
-<div class="w-full max-w-md p-8 bg-white/5 rounded-2xl border border-white/10">
-    <h1 class="text-3xl font-black mb-6 text-center">Login</h1>
-
-    <!-- LOGGED IN -->
-    <div id="loggedInBox" class="hidden text-center">
-        <p class="text-green-400 font-bold mb-4">Already Logged In</p>
-
-        <div id="apiKeyBox" class="bg-black border border-white/10 p-4 rounded-xl break-all mb-4"></div>
-
-        <button onclick="copyKey()" class="w-full bg-purple-600 py-2 rounded-xl mb-3">
-            Copy API Key
-        </button>
-
-        <button onclick="logout()" class="w-full bg-red-600 py-2 rounded-xl">
-            Logout
-        </button>
-    </div>
-
-    <!-- EMAIL STEP -->
-    <div id="emailStep">
-        <input id="email" type="email" placeholder="Enter your email"
-            class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl">
-        
-        <button onclick="requestOTP()" class="w-full bg-purple-600 py-3 rounded-xl font-bold">
-            Send OTP
-        </button>
-    </div>
-
-    <!-- OTP STEP -->
-    <div id="otpStep" class="hidden">
-        <input id="otp" type="text" placeholder="Enter OTP"
-            class="w-full p-4 mb-4 bg-black border border-white/10 rounded-xl">
-        
-        <button onclick="verifyOTP()" class="w-full bg-green-600 py-3 rounded-xl font-bold">
-            Verify & Login
-        </button>
-    </div>
-
-    <p id="status" class="text-sm text-gray-400 mt-4 text-center"></p>
+<div class="mt-6 text-sm text-gray-500 space-y-2">
+  <p>⚡ No scraping setup</p>
+  <p>🔐 Secure API key auth</p>
+  <p>📦 Free tier included</p>
 </div>
 
-<script>
-const apiKey = localStorage.getItem("ghost_api_key");
+  </div>  <!-- RIGHT PANEL -->  <div class="bg-white/5 border border-white/10 rounded-2xl p-8"><h2 class="text-2xl font-bold mb-6">Login</h2>
 
-window.onload = async () => {
-    if (!apiKey) return;
+<!-- EMAIL -->
+<div id="emailStep">
+  <input id="email" type="email"
+    placeholder="you@company.com"
+    class="w-full p-4 rounded-xl bg-black border border-white/10 mb-4 outline-none">
 
-    try {
-        const res = await fetch(`/api/user/stats`, {
-            headers: { "x-api-key": apiKey }
-        });
+  <button onclick="requestOTP()"
+    class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-xl font-bold">
+    Send OTP
+  </button>
+</div>
 
-        const data = await res.json();
+<!-- OTP -->
+<div id="otpStep" class="hidden">
+  <input id="otp" type="text"
+    placeholder="6-digit code"
+    class="w-full p-4 rounded-xl bg-black border border-white/10 mb-4 outline-none">
 
-        if (res.ok && data.success) {
-            showLoggedIn(apiKey);
-        } else {
-            localStorage.removeItem("ghost_api_key");
-        }
-    } catch {
-        localStorage.removeItem("ghost_api_key");
-    }
-};
+  <button onclick="verifyOTP()"
+    class="w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold">
+    Verify & Continue
+  </button>
+</div>
 
-function showLoggedIn(key) {
+<p id="status" class="text-sm text-gray-400 mt-4 text-center"></p>
+
+  </div></div><script>
+function setStatus(msg){
+  document.getElementById("status").innerText = msg;
+}
+
+async function requestOTP(){
+  const email = document.getElementById("email").value.trim();
+  if(!email) return setStatus("Enter email");
+
+  setStatus("Sending code...");
+
+  const res = await fetch("/api/auth/request-otp", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({email})
+  });
+
+  const data = await res.json();
+
+  if(data.success){
     document.getElementById("emailStep").classList.add("hidden");
-    document.getElementById("otpStep").classList.add("hidden");
-    document.getElementById("loggedInBox").classList.remove("hidden");
-    document.getElementById("apiKeyBox").innerText = key;
+    document.getElementById("otpStep").classList.remove("hidden");
+    setStatus("OTP sent");
+  } else {
+    setStatus(data.error || "Failed");
+  }
 }
 
-async function requestOTP() {
-    const email = document.getElementById("email").value.trim().toLowerCase();
-    if (!email) return alert("Enter email");
+async function verifyOTP(){
+  const email = document.getElementById("email").value.trim();
+  const otp = document.getElementById("otp").value.trim();
 
-    setStatus("Sending OTP...");
+  setStatus("Verifying...");
 
-    try {
-        const res = await fetch(`/api/auth/request-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email })
-        });
+  const res = await fetch("/api/auth/verify-otp", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({email, code: otp})
+  });
 
-        const data = await res.json();
+  const data = await res.json();
 
-        if (res.ok && data.success) {
-            document.getElementById("emailStep").classList.add("hidden");
-            document.getElementById("otpStep").classList.remove("hidden");
-            setStatus("OTP sent!");
-        } else {
-            setStatus(data.error || "Failed");
-        }
-    } catch (err) {
-        console.error(err);
-        setStatus("Network error");
-    }
+  if(data.success){
+    localStorage.setItem("ghost_api_key", data.apiKey);
+    window.location.href = "/dashboard.html";
+  } else {
+    setStatus(data.error || "Invalid OTP");
+  }
 }
-
-async function verifyOTP() {
-    const email = document.getElementById("email").value.trim().toLowerCase();
-    const otp = document.getElementById("otp").value.trim();
-
-    if (!otp) return alert("Enter OTP");
-
-    setStatus("Verifying...");
-
-    try {
-        const res = await fetch(`/api/auth/verify-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, code: otp })
-        });
-
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-            localStorage.setItem("ghost_api_key", data.apiKey);
-            showLoggedIn(data.apiKey);
-            setStatus("Login successful");
-        } else {
-            setStatus(data.error || "Invalid OTP");
-        }
-    } catch (err) {
-        console.error(err);
-        setStatus("Network error");
-    }
-}
-
-function copyKey() {
-    navigator.clipboard.writeText(localStorage.getItem("ghost_api_key") || "");
-    setStatus("Copied!");
-}
-
-function logout() {
-    localStorage.removeItem("ghost_api_key");
-    location.reload();
-}
-
-function setStatus(msg) {
-    document.getElementById("status").innerText = msg;
-}
-</script>
-
-</body>
+</script></body>
 </html>
