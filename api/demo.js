@@ -10,27 +10,27 @@ const { extractContent } = require("../../lib/extractor");
 const { checkUsage, logUsage, DAILY_LIMIT } = require("../../lib/usage");
 const supabase = require("../../lib/supabase");
 
-const burstCache = Object.create(null);
-
-const BURST_WINDOW = 5000;
-const BURST_LIMIT = 2;
 const FREE_TRIAL_LIMIT = 3;
 
+// -----------------------------
+// IP helper
+// -----------------------------
 function getIp(req) {
-  const raw =
+  return (
     req.headers["x-forwarded-for"] ||
     req.socket?.remoteAddress ||
-    "unknown";
-
-  return String(raw).split(",")[0].trim();
+    "unknown"
+  )
+    .toString()
+    .split(",")[0]
+    .trim();
 }
 
+// -----------------------------
+// API key helper
+// -----------------------------
 function getApiKeyFromHeader(req) {
-  const raw =
-    req.headers.authorization ||
-    req.headers.Authorization ||
-    "";
-
+  const raw = req.headers.authorization || "";
   const value = String(raw).trim();
 
   if (!value) return null;
@@ -42,7 +42,12 @@ function getApiKeyFromHeader(req) {
   return value;
 }
 
+// -----------------------------
+// Validate API key
+// -----------------------------
 async function validateKey(apiKey) {
+  if (!apiKey) return null;
+
   const { data, error } = await supabase
     .from("api_keys")
     .select("key, user_id")
@@ -57,9 +62,12 @@ async function validateKey(apiKey) {
 // MAIN HANDLER
 // -----------------------------
 module.exports = async (req, res) => {
-  // CORS (MUST BE INSIDE)
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "x-api-key, content-type, authorization"
+  );
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
@@ -100,30 +108,7 @@ module.exports = async (req, res) => {
     }
 
     // -----------------------------
-    // RATE LIMIT (BURST)
-    // -----------------------------
-    const now = Date.now();
-    const identifier = validApiKey || ip;
-
-    if (!burstCache[identifier]) {
-      burstCache[identifier] = [];
-    }
-
-    burstCache[identifier] = burstCache[identifier].filter(
-      (t) => now - t < BURST_WINDOW
-    );
-
-    if (burstCache[identifier].length >= BURST_LIMIT) {
-      return res.status(429).json({
-        success: false,
-        error: "Too many requests. Slow down.",
-      });
-    }
-
-    burstCache[identifier].push(now);
-
-    // -----------------------------
-    // USAGE LIMITS
+    // USAGE CHECK (IMPORTANT FIX)
     // -----------------------------
     const usage = await checkUsage(validApiKey, ip);
 
@@ -145,22 +130,37 @@ module.exports = async (req, res) => {
     // SCRAPE
     // -----------------------------
     const { html, source, wasBlocked } = await fetchSmart(url);
-    const article = extractContent(html, url);
 
-    if (!article || !article.content) {
+    if (!html) {
       return res.status(422).json({
         success: false,
-        error: "Could not extract content",
+        error: "Failed to fetch page",
+      });
+    }
+
+    const article = extractContent(html, url);
+
+    if (!article?.content) {
+      return res.status(422).json({
+        success: false,
+        error: "Content unreadable",
       });
     }
 
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
+    if (!markdown || markdown.trim().length < 50) {
+      return res.status(422).json({
+        success: false,
+        error: "Extraction too weak or blocked page",
+      });
+    }
+
     // -----------------------------
-    // LOG USAGE
+    // LOG USAGE (AFTER SUCCESS ONLY)
     // -----------------------------
-    await logUsage(validApiKey, ip, "/api/demo");
+    await logUsage(validApiKey, ip);
 
     // -----------------------------
     // RESPONSE
@@ -170,10 +170,9 @@ module.exports = async (req, res) => {
       title: article.title || "Untitled",
       source,
       wasBlocked: !!wasBlocked,
-      markdown: markdown.slice(0, 8000),
+      markdown,
       wordCount: getWordCount(article.text || article.content || ""),
     });
-
   } catch (err) {
     console.error("DEMO ERROR:", err);
 
