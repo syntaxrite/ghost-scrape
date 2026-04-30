@@ -1,1 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs | Ghost Scrape API</title>
+  <meta name="description" content="Ghost Scrape API documentation for developers and agents." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, sans-serif; background:#050505; color:#fff; }
+    .mono { font-family: "JetBrains Mono", monospace; }
+    .glass { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); backdrop-filter: blur(12px); }
+    .code { background: #0b0b0b; border: 1px solid rgba(255,255,255,.08); }
+  </style>
+</head>
+<body>
+  <nav class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between border-b border-white/5">
+    <a href="/" class="text-2xl font-black tracking-tight">
+      ghost-scrape<span class="text-purple-500">.tech</span>
+    </a>
+    <div class="flex items-center gap-4 text-sm text-gray-400">
+      <a href="/status.html" class="hover:text-white">Status</a>
+      <a href="/terms.html" class="hover:text-white">Terms</a>
+      <a href="/login.html" class="hover:text-white">Login</a>
+    </div>
+  </nav>
 
+  <main class="max-w-5xl mx-auto px-6 py-14">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 text-purple-400 text-xs font-bold uppercase tracking-widest mb-6">
+      API Documentation
+    </div>
+
+    <h1 class="text-4xl md:text-6xl font-black leading-tight mb-5">
+      Ghost Scrape API
+    </h1>
+    <p class="text-gray-400 text-lg max-w-3xl mb-10">
+      Turn public web pages into clean, LLM-ready Markdown for agents, crawlers, and developer workflows.
+    </p>
+
+    <div class="grid md:grid-cols-3 gap-4 mb-10">
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-widest text-gray-500 mb-2">Auth</div>
+        <div class="font-bold">x-api-key</div>
+        <div class="text-gray-400 text-sm mt-2">Use your API key in a request header.</div>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-widest text-gray-500 mb-2">Format</div>
+        <div class="font-bold">POST JSON</div>
+        <div class="text-gray-400 text-sm mt-2">Send a URL in the JSON body.</div>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-widest text-gray-500 mb-2">Output</div>
+        <div class="font-bold">Markdown</div>
+        <div class="text-gray-400 text-sm mt-2">Returns clean text, title, source, and word count.</div>
+      </div>
+    </div>
+
+    <section class="grid lg:grid-cols-2 gap-6 mb-10">
+      <div class="glass rounded-3xl p-6">
+        <h2 class="text-2xl font-black mb-4">Official request</h2>
+        <pre class="code mono text-sm text-gray-200 rounded-2xl p-4 overflow-x-auto"><code>POST /api/scrape
+Content-Type: application/json
+x-api-key: ghost_xxx
+
+{
+  "url": "https://example.com/article"
+}</code></pre>
+        <p class="text-gray-400 text-sm mt-4">
+          For the public UI demo, <code class="mono">/api/demo</code> also accepts the same URL body, but <strong>POST JSON</strong> is the official developer contract.
+        </p>
+      </div>
+
+      <div class="glass rounded-3xl p-6">
+        <h2 class="text-2xl font-black mb-4">Quick curl test</h2>
+        <pre class="code mono text-sm text-gray-200 rounded-2xl p-4 overflow-x-auto"><code>curl -X POST "https://ghost-scrape.tech/api/scrape" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ghost_xxx" \
+  -d '{"url":"https://example.com"}'</code></pre>
+        <p class="text-gray-400 text-sm mt-4">
+          If you are testing the demo flow without a key, call <code class="mono">/api/demo</code> with the same JSON body.
+        </p>
+      </div>
+    </section>
+
+    <section class="glass rounded-3xl p-6 mb-10">
+      <h2 class="text-2xl font-black mb-4">Response shape</h2>
+      <pre class="code mono text-sm text-gray-200 rounded-2xl p-4 overflow-x-auto"><code>{
+  "success": true,
+  "title": "Article title",
+  "domain": "example.com",
+  "source": "axios",
+  "wasBlocked": false,
+  "wordCount": 1234,
+  "markdown": "# Clean content ..."
+}</code></pre>
+    </section>
+
+    <section class="grid lg:grid-cols-2 gap-6 mb-10">
+      <div class="glass rounded-3xl p-6">
+        <h2 class="text-2xl font-black mb-4">JavaScript example</h2>
+        <pre class="code mono text-sm text-gray-200 rounded-2xl p-4 overflow-x-auto"><code>const res = await fetch("https://ghost-scrape.tech/api/scrape", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.GHOST_API_KEY
+  },
+  body: JSON.stringify({
+    url: "https://example.com"
+  })
+});
+
+const data = await res.json();
+console.log(data.markdown);</code></pre>
+      </div>
+
+      <div class="glass rounded-3xl p-6">
+        <h2 class="text-2xl font-black mb-4">Python example</h2>
+        <pre class="code mono text-sm text-gray-200 rounded-2xl p-4 overflow-x-auto"><code>import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+res = requests.post(
+    "https://ghost-scrape.tech/api/scrape",
+    headers={"x-api-key": os.getenv("GHOST_API_KEY")},
+    json={"url": "https://example.com"}
+)
+
+print(res.json()["markdown"])</code></pre>
+      </div>
+    </section>
+
+    <section class="grid md:grid-cols-3 gap-4 mb-10">
+      <div class="glass rounded-2xl p-5">
+        <div class="font-bold mb-2">401</div>
+        <div class="text-gray-400 text-sm">Invalid or missing API key.</div>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="font-bold mb-2">429</div>
+        <div class="text-gray-400 text-sm">Rate limit exceeded or free trial exhausted.</div>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="font-bold mb-2">422</div>
+        <div class="text-gray-400 text-sm">Content could not be extracted cleanly.</div>
+      </div>
+    </section>
+
+    <section class="glass rounded-3xl p-6">
+      <h2 class="text-2xl font-black mb-4">For agents</h2>
+      <p class="text-gray-400 leading-7 max-w-3xl">
+        Ghost Scrape is built as a preprocessing layer for search-driven agents, RAG pipelines, and crawler workflows.
+        Use it when search results return noisy HTML, navigation clutter, or page boilerplate, and you need clean Markdown for downstream models.
+      </p>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-6 py-10 text-sm text-gray-500 flex flex-wrap gap-4 justify-between border-t border-white/5 mt-12">
+    <span>Ghost Scrape API</span>
+    <div class="flex gap-4">
+      <a href="/status.html" class="hover:text-white">Status</a>
+      <a href="/terms.html" class="hover:text-white">Terms</a>
+      <a href="mailto:support@ghost-scrape.tech" class="hover:text-white">Contact</a>
+    </div>
+  </footer>
+</body>
+  </html>
