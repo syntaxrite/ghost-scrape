@@ -1,240 +1,469 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Dashboard | Ghost Scrape</title>
-<script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | Ghost Scrape</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-<style>
-:root { color-scheme: dark; }
+  <style>
+    :root { color-scheme: dark; }
 
-body {
-  background:
-    radial-gradient(circle at top, rgba(168,85,247,0.14), transparent 35%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,0.10), transparent 30%),
-    #050505;
-  color: white;
-  font-family: Inter, system-ui, sans-serif;
-}
+    body {
+      background:
+        radial-gradient(circle at top, rgba(168,85,247,0.14), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,0.10), transparent 30%),
+        #050505;
+      color: white;
+      font-family: Inter, system-ui, sans-serif;
+    }
 
-.glass {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(18px);
-}
+    .glass {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.32);
+    }
 
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
+    .track {
+      background: rgba(255,255,255,0.08);
+    }
 
-.track {
-  background: rgba(255,255,255,0.08);
-}
-</style>
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .soft-border {
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+  </style>
 </head>
 
 <body class="min-h-screen">
 
-<!-- HEADER -->
-<header class="border-b border-white/10">
-  <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 bg-black/70 backdrop-blur-xl border-b border-white/5">
+    <nav class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+      <!-- Same logo style as index -->
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="p-2 rounded-2xl bg-purple-600/95 group-hover:rotate-6 transition-transform">
+          <i data-lucide="ghost" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="font-black tracking-tight text-lg md:text-xl">
+            ghost-scrape<span class="text-purple-500">.tech</span>
+          </div>
+          <div class="text-[10px] uppercase tracking-[0.28em] text-slate-500">
+            AI-ready web extraction api
+          </div>
+        </div>
+      </a>
 
-    <div class="flex items-center gap-3">
-      
-      <div class="p-2 rounded-2xl bg-purple-600/95">
-  <i data-lucide="ghost" class="w-5 h-5 text-white"></i>
+      <div class="flex items-center gap-3">
+        <span class="hidden sm:inline-flex px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] bg-purple-600/15 text-purple-300 border border-purple-500/20">
+          Free · 25/day · 300/month
+        </span>
+        <button id="logoutBtn" class="px-4 py-2 rounded-2xl text-sm font-bold text-red-300 hover:text-red-200 hover:bg-red-500/10 border border-white/10 transition">
+          Logout
+        </button>
       </div>
-      <div>
-        <div class="font-bold">Ghost Scrape</div>
-        <div class="text-xs text-slate-400">LLM-ready scraping API</div>
-      </div>
-    </div>
+    </nav>
+  </header>
 
-    <div class="flex items-center gap-3">
-      <span class="text-xs px-3 py-1 rounded-full bg-white/5 border border-white/10">
-        Free · 300/month
-      </span>
-      <button id="logoutBtn" class="text-red-300 text-sm">Logout</button>
-    </div>
+  <main class="max-w-6xl mx-auto px-6 py-10">
 
-  </div>
-</header>
-
-<!-- MAIN -->
-<main class="max-w-6xl mx-auto px-6 py-10">
-
-  <!-- HERO -->
-  <section class="mb-8">
-    <h1 class="text-3xl font-bold">Developer Dashboard</h1>
-    <p class="text-slate-400 mt-2">
-      Turn URLs into clean markdown for LLMs, RAG pipelines, and agents.
-    </p>
-  </section>
-
-  <!-- STATUS ROW -->
-  <section class="grid md:grid-cols-3 gap-4 mb-6">
-
-    <div class="glass rounded-2xl p-5">
-      <p class="text-xs text-slate-400">System status</p>
-      <p id="systemStatus" class="font-bold text-emerald-400 mt-1">Checking...</p>
-    </div>
-
-    <div class="glass rounded-2xl p-5">
-      <p class="text-xs text-slate-400">Monthly usage</p>
-      <p class="font-bold text-lg">
-        <span id="monthlyUsed">0</span> / <span id="monthlyLimit">300</span>
-      </p>
-    </div>
-
-    <div class="glass rounded-2xl p-5">
-      <p class="text-xs text-slate-400">Requests left</p>
-      <p class="font-bold text-lg" id="remainingRequests">0</p>
-    </div>
-
-  </section>
-
-  <!-- USAGE -->
-  <section class="glass rounded-3xl p-6 mb-8">
-
-    <div class="flex justify-between items-start mb-6">
-      <div>
-        <h2 class="text-lg font-bold">Usage</h2>
-        <p class="text-sm text-slate-400">
-          1 request = 1 URL processed into clean markdown.
-        </p>
-      </div>
-      <div id="usageStatus" class="text-sm text-slate-400">Loading...</div>
-    </div>
-
-    <div class="grid md:grid-cols-2 gap-5">
-
-      <!-- DAILY -->
-      <div>
-        <p class="text-xs text-slate-400 mb-1">Daily limit</p>
-        <div class="text-xl font-bold">
-          <span id="dailyUsed">0</span> / <span id="dailyLimit">25</span>
+    <!-- HERO -->
+    <section class="mb-8">
+      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div class="max-w-2xl">
+          <p class="text-xs uppercase tracking-[0.3em] text-purple-300/80 mb-3">Developer dashboard</p>
+          <h1 class="text-3xl md:text-4xl font-black leading-tight">Track usage, copy your key, and ship faster.</h1>
+          <p class="mt-3 text-sm md:text-base text-slate-400 leading-6">
+            Each request turns one URL into clean, LLM- and RAG-ready markdown.
+          </p>
         </div>
 
-        <div class="h-2 track rounded-full mt-3 overflow-hidden">
-          <div id="dailyBar" class="h-2 w-0 transition-all"></div>
+        <div class="glass rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.55)]"></div>
+          <div>
+            <p class="text-xs text-slate-400">Plan</p>
+            <p class="text-sm font-bold text-white">Free</p>
+          </div>
+          <div class="w-px h-10 bg-white/10 mx-1"></div>
+          <div>
+            <p class="text-xs text-slate-400">Status</p>
+            <p id="usageStatus" class="text-sm font-bold text-white">Loading usage…</p>
+          </div>
         </div>
+      </div>
+    </section>
 
-        <p class="text-xs text-slate-500 mt-2" id="dailyRemainingText"></p>
+    <!-- SUMMARY -->
+    <section class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="glass rounded-2xl p-5">
+        <p class="text-xs text-slate-400">System status</p>
+        <p id="systemStatus" class="font-bold text-emerald-400 mt-1">Checking…</p>
       </div>
 
-      <!-- MONTHLY -->
-      <div>
-        <p class="text-xs text-slate-400 mb-1">Monthly limit</p>
-        <div class="text-xl font-bold">
-          <span id="monthlyUsed">0</span> / <span id="monthlyLimit">300</span>
-        </div>
-
-        <div class="h-2 track rounded-full mt-3 overflow-hidden">
-          <div id="monthlyBar" class="h-2 w-0 transition-all"></div>
-        </div>
-
-        <p class="text-xs text-slate-500 mt-2" id="monthlyRemainingText"></p>
+      <div class="glass rounded-2xl p-5">
+        <p class="text-xs text-slate-400">Monthly usage</p>
+        <p class="font-bold text-lg"><span id="summaryMonthlyUsed">0</span> / <span id="summaryMonthlyLimit">300</span></p>
       </div>
 
+      <div class="glass rounded-2xl p-5">
+        <p class="text-xs text-slate-400">Requests left</p>
+        <p class="font-bold text-lg" id="remainingRequests">0</p>
+      </div>
+    </section>
+
+    <!-- USAGE -->
+    <section class="glass rounded-3xl p-6 md:p-8 mb-8">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+          <h2 class="text-xl font-black">Usage</h2>
+          <p class="text-sm text-slate-400 mt-1">Resets daily at midnight UTC. Monthly quota resets on the first of each month UTC.</p>
+        </div>
+        <div class="text-sm text-slate-400">
+          <span id="loginHint" class="hidden text-red-300">Please log in to view your usage.</span>
+        </div>
+      </div>
+
+      <div id="usageSkeleton" class="grid md:grid-cols-2 gap-5 animate-pulse">
+        <div class="glass rounded-2xl p-5">
+          <div class="h-3 w-24 bg-white/10 rounded mb-4"></div>
+          <div class="h-7 w-36 bg-white/10 rounded mb-5"></div>
+          <div class="h-2 w-full bg-white/10 rounded-full"></div>
+          <div class="h-3 w-32 bg-white/10 rounded mt-4"></div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+          <div class="h-3 w-24 bg-white/10 rounded mb-4"></div>
+          <div class="h-7 w-36 bg-white/10 rounded mb-5"></div>
+          <div class="h-2 w-full bg-white/10 rounded-full"></div>
+          <div class="h-3 w-32 bg-white/10 rounded mt-4"></div>
+        </div>
+      </div>
+
+      <div id="usageContent" class="hidden">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div class="glass rounded-2xl p-5 soft-border">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Daily usage</p>
+                <p class="mt-2 text-2xl font-black">
+                  <span id="dailyUsed">0</span>
+                  <span class="text-slate-500">/</span>
+                  <span id="dailyLimit">25</span>
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-slate-400">Used</p>
+                <p id="dailyPercent" class="text-lg font-black">0%</p>
+              </div>
+            </div>
+
+            <div class="mt-4 h-2 rounded-full track overflow-hidden">
+              <div id="dailyBar" class="h-2 rounded-full w-0 transition-all duration-700"></div>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
+              <span id="dailyRemainingText">0 remaining today</span>
+              <span>Daily cap</span>
+            </div>
+
+            <p id="dailyWarning" class="mt-3 text-xs text-red-300 hidden">Daily limit reached.</p>
+          </div>
+
+          <div class="glass rounded-2xl p-5 soft-border">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Monthly usage</p>
+                <p class="mt-2 text-2xl font-black">
+                  <span id="monthlyUsed">0</span>
+                  <span class="text-slate-500">/</span>
+                  <span id="monthlyLimit">300</span>
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-slate-400">Used</p>
+                <p id="monthlyPercent" class="text-lg font-black">0%</p>
+              </div>
+            </div>
+
+            <div class="mt-4 h-2 rounded-full track overflow-hidden">
+              <div id="monthlyBar" class="h-2 rounded-full w-0 transition-all duration-700"></div>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
+              <span id="monthlyRemainingText">0 remaining this month</span>
+              <span>Monthly cap</span>
+            </div>
+          </div>
+        </div>
+
+        <p id="usageError" class="hidden mt-4 text-sm text-red-300">Unable to load usage right now.</p>
+      </div>
+    </section>
+
+    <!-- API KEY + QUICK START -->
+    <div class="grid lg:grid-cols-3 gap-6">
+      <section class="glass rounded-3xl p-5 md:p-6 soft-border">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="font-black text-lg">API Key</h2>
+            <p class="text-sm text-slate-400 mt-1">Keep this private. Treat it like a password.</p>
+          </div>
+          <span class="px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] bg-emerald-500/10 text-emerald-300 border border-emerald-500/15">
+            Active
+          </span>
+        </div>
+
+        <div class="bg-black/70 border border-white/10 rounded-2xl p-4 mono text-sm text-purple-200 break-all min-h-[72px] flex items-center">
+          <span id="apiKey">Loading…</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-4">
+          <button id="toggleKeyBtn" class="px-4 py-2 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold transition">
+            Show key
+          </button>
+          <button id="copyBtn" class="px-4 py-2 rounded-2xl bg-purple-600 hover:bg-purple-500 text-sm font-bold transition">
+            Copy key
+          </button>
+        </div>
+      </section>
+
+      <section class="glass rounded-3xl p-5 md:p-6 soft-border lg:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="font-black text-lg">Quick Start</h2>
+            <p class="text-sm text-slate-400 mt-1">Drop this into Node, Python, or cURL.</p>
+          </div>
+        </div>
+
+        <div class="grid gap-4">
+          <div class="rounded-2xl bg-black/70 border border-white/10 p-4 overflow-x-auto">
+            <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">cURL</div>
+            <pre class="text-xs leading-6 text-slate-200">curl -X POST https://YOUR_DOMAIN/api/scrape \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_KEY" \
+  -d '{"url":"https://example.com"}'</pre>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-2xl bg-black/70 border border-white/10 p-4 overflow-x-auto">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">Node.js</div>
+              <pre class="text-xs leading-6 text-slate-200">const res = await fetch("https://YOUR_DOMAIN/api/scrape", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.GHOST_API_KEY
+  },
+  body: JSON.stringify({ url: "https://example.com" })
+});
+
+const data = await res.json();
+console.log(data.markdown);</pre>
+            </div>
+
+            <div class="rounded-2xl bg-black/70 border border-white/10 p-4 overflow-x-auto">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">Python</div>
+              <pre class="text-xs leading-6 text-slate-200">import os
+import requests
+
+res = requests.post(
+    "https://YOUR_DOMAIN/api/scrape",
+    headers={"x-api-key": os.getenv("GHOST_API_KEY")},
+    json={"url": "https://example.com"}
+)
+
+print(res.json()["markdown"])</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p class="text-sm text-slate-300">
+            <span class="font-bold text-white">What counts as one request:</span>
+            one page sent through Ghost Scrape and returned as clean markdown.
+          </p>
+        </div>
+      </section>
     </div>
+  </main>
 
-    <p id="dailyWarning" class="text-red-400 text-xs mt-4 hidden">
-      Daily limit reached.
-    </p>
+  <script>
+    const key = localStorage.getItem("ghost_api_key");
+    let keyVisible = false;
 
-  </section>
+    const el = (id) => document.getElementById(id);
 
-  <!-- API KEY -->
-  <section class="glass rounded-3xl p-6">
+    function colorClass(percent) {
+      if (percent < 70) return "bg-emerald-500";
+      if (percent < 90) return "bg-yellow-400";
+      return "bg-red-500";
+    }
 
-    <h2 class="font-bold mb-2">API Key</h2>
-    <p class="text-sm text-slate-400 mb-4">
-      Keep this secret. Treat it like a password.
-    </p>
+    function maskKey(value) {
+      if (!value) return "Not logged in";
+      if (value.length <= 10) return "••••••••••";
+      return `${value.slice(0, 4)}…${value.slice(-4)}`;
+    }
 
-    <div class="mono bg-black/60 border border-white/10 p-4 rounded-2xl text-sm break-all">
-      <span id="apiKey">Loading...</span>
-    </div>
+    function setButtonsDisabled(disabled) {
+      [el("copyBtn"), el("toggleKeyBtn")].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = disabled;
+        btn.classList.toggle("opacity-50", disabled);
+        btn.classList.toggle("cursor-not-allowed", disabled);
+      });
+    }
 
-    <div class="flex gap-3 mt-4">
-      <button id="copyBtn" class="px-4 py-2 rounded-xl bg-purple-600 text-sm font-bold">
-        Copy
-      </button>
-    </div>
+    function renderApiKey() {
+      const apiKeyEl = el("apiKey");
+      const toggleBtn = el("toggleKeyBtn");
 
-  </section>
+      if (!key) {
+        apiKeyEl.textContent = "Not logged in";
+        toggleBtn.textContent = "Show key";
+        setButtonsDisabled(true);
+        return;
+      }
 
-</main>
+      apiKeyEl.textContent = keyVisible ? key : maskKey(key);
+      toggleBtn.textContent = keyVisible ? "Hide key" : "Show key";
+      setButtonsDisabled(false);
+    }
 
-<script>
-const key = localStorage.getItem("ghost_api_key");
+    async function fetchUsage() {
+      if (!key) return null;
 
-function color(p) {
-  if (p < 70) return "bg-emerald-500";
-  if (p < 90) return "bg-yellow-400";
-  return "bg-red-500";
-}
+      try {
+        const res = await fetch("/api/user/stats", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": key,
+          },
+        });
 
-async function load() {
-  if (!key) return;
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
 
-  const res = await fetch("/api/user/stats", {
-    headers: { "x-api-key": key }
-  });
+    function updateUI(data) {
+      el("usageSkeleton").classList.add("hidden");
+      el("usageContent").classList.remove("hidden");
+      el("usageError").classList.add("hidden");
 
-  if (!res.ok) return;
+      if (!data) {
+        el("usageContent").classList.add("hidden");
+        el("usageError").classList.remove("hidden");
+        el("systemStatus").textContent = key ? "Unable to load usage" : "Not logged in";
+        el("usageStatus").textContent = key ? "Unable to load usage" : "Not logged in";
+        return;
+      }
 
-  const d = await res.json();
+      const daily = Number(data.daily_used || 0);
+      const dailyLimit = Number(data.daily_limit || 25);
+      const monthly = Number(data.monthly_used || 0);
+      const monthlyLimit = Number(data.monthly_limit || 300);
 
-  const daily = d.daily_used || 0;
-  const dLimit = d.daily_limit || 25;
+      const dailyPct = dailyLimit ? Math.min(100, Math.round((daily / dailyLimit) * 100)) : 0;
+      const monthlyPct = monthlyLimit ? Math.min(100, Math.round((monthly / monthlyLimit) * 100)) : 0;
 
-  const monthly = d.monthly_used || 0;
-  const mLimit = d.monthly_limit || 300;
+      const dailyRemaining = Math.max(0, dailyLimit - daily);
+      const monthlyRemaining = Math.max(0, monthlyLimit - monthly);
 
-  const dPct = Math.round((daily / dLimit) * 100);
-  const mPct = Math.round((monthly / mLimit) * 100);
+      el("dailyUsed").textContent = daily;
+      el("dailyLimit").textContent = dailyLimit;
+      el("monthlyUsed").textContent = monthly;
+      el("monthlyLimit").textContent = monthlyLimit;
 
-  document.getElementById("dailyUsed").innerText = daily;
-  document.getElementById("monthlyUsed").innerText = monthly;
+      el("summaryMonthlyUsed").textContent = monthly;
+      el("summaryMonthlyLimit").textContent = monthlyLimit;
+      el("remainingRequests").textContent = monthlyRemaining;
 
-  document.getElementById("dailyLimit").innerText = dLimit;
-  document.getElementById("monthlyLimit").innerText = mLimit;
+      el("dailyPercent").textContent = `${dailyPct}%`;
+      el("monthlyPercent").textContent = `${monthlyPct}%`;
 
-  document.getElementById("dailyBar").style.width = dPct + "%";
-  document.getElementById("monthlyBar").style.width = mPct + "%";
+      el("dailyRemainingText").textContent = `${dailyRemaining} remaining today`;
+      el("monthlyRemainingText").textContent = `${monthlyRemaining} remaining this month`;
 
-  document.getElementById("dailyBar").className = "h-2 " + color(dPct);
-  document.getElementById("monthlyBar").className = "h-2 " + color(mPct);
+      el("dailyBar").className = `h-2 rounded-full w-0 transition-all duration-700 ${colorClass(dailyPct)}`;
+      el("monthlyBar").className = `h-2 rounded-full w-0 transition-all duration-700 ${colorClass(monthlyPct)}`;
 
-  const remaining = mLimit - monthly;
-  document.getElementById("remainingRequests").innerText = remaining;
+      requestAnimationFrame(() => {
+        el("dailyBar").style.width = `${dailyPct}%`;
+        el("monthlyBar").style.width = `${monthlyPct}%`;
+      });
 
-  document.getElementById("dailyRemainingText").innerText =
-    (dLimit - daily) + " left today";
+      if (daily >= dailyLimit) {
+        el("dailyWarning").classList.remove("hidden");
+        el("usageStatus").textContent = "Daily limit reached";
+        el("systemStatus").textContent = "Rate limited";
+        el("systemStatus").className = "font-bold text-red-400 mt-1";
+      } else {
+        el("dailyWarning").classList.add("hidden");
+        el("usageStatus").textContent = "Active";
+        el("systemStatus").textContent = "Active";
+        el("systemStatus").className = "font-bold text-emerald-400 mt-1";
+      }
+    }
 
-  document.getElementById("monthlyRemainingText").innerText =
-    remaining + " left this month";
+    async function init() {
+      renderApiKey();
 
-  document.getElementById("usageStatus").innerText =
-    daily >= dLimit ? "Rate limited" : "Active";
-}
+      if (!key) {
+        el("usageSkeleton").classList.add("hidden");
+        el("usageContent").classList.add("hidden");
+        el("loginHint").classList.remove("hidden");
+        el("usageStatus").textContent = "Not logged in";
+        el("systemStatus").textContent = "Not logged in";
+        setButtonsDisabled(true);
+        lucide.createIcons();
+        return;
+      }
 
-document.getElementById("apiKey").innerText = key || "Not logged in";
+      const data = await fetchUsage();
+      updateUI(data);
+      lucide.createIcons();
+    }
 
-document.getElementById("copyBtn").onclick = () => {
-  navigator.clipboard.writeText(key);
-  alert("Copied");
-};
+    async function copyKey() {
+      if (!key) return;
 
-document.getElementById("logoutBtn").onclick = () => {
-  localStorage.removeItem("ghost_api_key");
-  location.href = "/login.html";
-};
+      try {
+        await navigator.clipboard.writeText(key);
+        const btn = el("copyBtn");
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => {
+          btn.textContent = old;
+        }, 1200);
+      } catch {
+        alert("Copy failed");
+      }
+    }
 
-load();
-</script>
+    function toggleKey() {
+      if (!key) return;
+      keyVisible = !keyVisible;
+      renderApiKey();
+    }
 
+    function logout() {
+      localStorage.removeItem("ghost_api_key");
+      window.location.href = "/login.html";
+    }
+
+    el("copyBtn").addEventListener("click", copyKey);
+    el("toggleKeyBtn").addEventListener("click", toggleKey);
+    el("logoutBtn").addEventListener("click", logout);
+
+    init();
+  </script>
 </body>
 </html>
