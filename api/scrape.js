@@ -18,6 +18,9 @@ const {
   MONTHLY_LIMIT,
 } = require("../lib/usage");
 
+// -----------------------------
+// HELPERS
+// -----------------------------
 function getApiKey(req) {
   const auth =
     req.headers?.authorization ||
@@ -56,13 +59,21 @@ function parseBody(req) {
   return null;
 }
 
+// -----------------------------
+// FIXED VALIDATE KEY
+// -----------------------------
 async function validateKey(apiKey) {
   if (!apiKey) return null;
 
+  const cleanKey = apiKey.trim();
+
+  console.log("API KEY RECEIVED:", cleanKey);
+
   const { data, error } = await supabase
     .from("api_keys")
-    .select("key, user_id")
-    .eq("key", apiKey)
+    .select("*")
+    .eq("key", cleanKey)
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -70,9 +81,18 @@ async function validateKey(apiKey) {
     return null;
   }
 
+  if (!data) {
+    console.log("API KEY NOT FOUND:", cleanKey);
+  } else {
+    console.log("API KEY VALID:", cleanKey);
+  }
+
   return data || null;
 }
 
+// -----------------------------
+// MAIN HANDLER
+// -----------------------------
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader(
@@ -94,10 +114,6 @@ module.exports = async (req, res) => {
 
   try {
     console.log("SCRAPE START");
-    console.log("HEADERS:", {
-      "content-type": req.headers["content-type"],
-      origin: req.headers.origin || null,
-    });
 
     // -----------------------------
     // AUTH
@@ -121,6 +137,7 @@ module.exports = async (req, res) => {
     }
 
     const userId = keyRow.user_id;
+
     if (!userId) {
       return res.status(500).json({
         success: false,
@@ -131,7 +148,7 @@ module.exports = async (req, res) => {
     const ip = getIp(req);
 
     // -----------------------------
-    // USAGE LIMITS
+    // USAGE LIMITS (SAFE)
     // -----------------------------
     let dailyUsage = 0;
     let monthlyUsage = 0;
@@ -179,6 +196,7 @@ module.exports = async (req, res) => {
     }
 
     const url = body.url;
+
     if (!url || typeof url !== "string") {
       return res.status(400).json({
         success: false,
@@ -199,8 +217,12 @@ module.exports = async (req, res) => {
     );
 
     let fetchResult;
+
     try {
-      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
+      fetchResult = await Promise.race([
+        fetchSmart(normalized),
+        timeout,
+      ]);
     } catch (err) {
       console.error("FETCH ERROR:", err);
       return res.status(500).json({
@@ -214,7 +236,6 @@ module.exports = async (req, res) => {
     const wasBlocked = !!fetchResult?.wasBlocked;
 
     console.log("FETCH RESULT:", {
-      hasHtml: !!html,
       htmlLength: html.length,
       source,
       wasBlocked,
@@ -231,6 +252,7 @@ module.exports = async (req, res) => {
     // EXTRACT
     // -----------------------------
     let article;
+
     try {
       article = extractContent(html, normalized);
     } catch (err) {
@@ -252,6 +274,7 @@ module.exports = async (req, res) => {
     // MARKDOWN
     // -----------------------------
     let markdown;
+
     try {
       markdown = turndown.turndown(article.content);
       markdown = cleanMarkdown(markdown);
@@ -291,8 +314,10 @@ module.exports = async (req, res) => {
       wordCount: getWordCount(article.text || article.content || ""),
       markdown,
     });
+
   } catch (err) {
     console.error("SCRAPE FATAL ERROR:", err);
+
     return res.status(500).json({
       success: false,
       error: err.message || "Internal server error",
