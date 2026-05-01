@@ -12,6 +12,39 @@ const supabase = require("../../lib/supabase");
 
 const FREE_TRIAL_LIMIT = 4;
 
+// Rate limiter (in-memory, basic)
+const requestTimestamps = new Map();
+
+function isRateLimited(identifier) {
+  const now = Date.now();
+  const lastRequest = requestTimestamps.get(identifier);
+  
+  if (!lastRequest) {
+    requestTimestamps.set(identifier, now);
+    return false;
+  }
+  
+  // Enforce 2 second minimum between requests per identifier
+  if (now - lastRequest < 2000) {
+    return true;
+  }
+  
+  requestTimestamps.set(identifier, now);
+  return false;
+}
+
+// Cleanup old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  const cutoff = now - 5 * 60 * 1000;
+  
+  for (const [key, timestamp] of requestTimestamps.entries()) {
+    if (timestamp < cutoff) {
+      requestTimestamps.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // -----------------------------
 // IP helper
 // -----------------------------
@@ -89,6 +122,15 @@ module.exports = async (req, res) => {
 
     url = normalizeUrl(url);
 
+    // Check rate limit (per IP or API key)
+    const rateLimitIdentifier = apiKey || ip;
+    if (isRateLimited(rateLimitIdentifier)) {
+      return res.status(429).json({
+        success: false,
+        error: "Too many requests. Please wait before retrying.",
+      });
+    }
+
     // -----------------------------
     // AUTH CHECK
     // -----------------------------
@@ -161,8 +203,10 @@ module.exports = async (req, res) => {
 
     // -----------------------------
     // LOG USAGE (AFTER SUCCESS ONLY)
+    // Log with fallback: if apiKey exists, use it; otherwise log "anonymous"
+    // This ensures both authenticated and anonymous usage is tracked
     // -----------------------------
-    await logUsage(validApiKey, ip);
+    await logUsage(validApiKey || "anonymous", ip);
 
     // -----------------------------
     // RESPONSE
