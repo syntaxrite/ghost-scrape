@@ -146,8 +146,16 @@ module.exports = async (req, res) => {
       });
     }
 
-    const body = parseBody(req);
-    if (!body) {
+    let body = {};
+
+try {
+  body =
+    typeof req.body === "string"
+      ? JSON.parse(req.body)
+      : req.body || {};
+} catch {
+  body = {};
+}
       return res.status(400).json({
         success: false,
         error: "Invalid JSON body",
