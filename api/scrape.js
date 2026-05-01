@@ -18,6 +18,8 @@ const {
 
 const { logUsage } = require("../lib/usage");
 
+console.log("BODY DEBUG:", body);
+console.log("URL DEBUG:", url);
 // -----------------------------
 // Validate API Key
 // -----------------------------
@@ -151,9 +153,18 @@ module.exports = async (req, res) => {
         error: "Content-Type must be application/json",
       });
     }
+let body = {};
 
-    const body = parseBody(req);
-    const url = body.url;
+try {
+  body =
+    typeof req.body === "string"
+      ? JSON.parse(req.body)
+      : req.body || {};
+} catch {
+  body = {};
+}
+
+const url = body.url;
 
     if (!url) {
       return res.status(400).json({
