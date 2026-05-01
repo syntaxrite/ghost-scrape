@@ -7,182 +7,132 @@ const {
 
 const { fetchSmart } = require("../../lib/engine");
 const { extractContent } = require("../../lib/extractor");
-const { checkUsage, logUsage, DAILY_LIMIT } = require("../../lib/usage");
-const supabase = require("../../lib/supabase");
+const { checkUsage, logUsage } = require("../../lib/usage");
 
 const FREE_TRIAL_LIMIT = 4;
 
-// Rate limiter (in-memory, basic)
-const requestTimestamps = new Map();
-
-function isRateLimited(identifier) {
-  const now = Date.now();
-  const lastRequest = requestTimestamps.get(identifier);
-  
-  if (!lastRequest) {
-    requestTimestamps.set(identifier, now);
-    return false;
-  }
-  
-  // Enforce 2 second minimum between requests per identifier
-  if (now - lastRequest < 2000) {
-    return true;
-  }
-  
-  requestTimestamps.set(identifier, now);
-  return false;
-}
-
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  const cutoff = now - 5 * 60 * 1000;
-  
-  for (const [key, timestamp] of requestTimestamps.entries()) {
-    if (timestamp < cutoff) {
-      requestTimestamps.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
-
-// -----------------------------
-// IP helper
-// -----------------------------
 function getIp(req) {
-  return (
+  const raw =
     req.headers["x-forwarded-for"] ||
     req.socket?.remoteAddress ||
-    "unknown"
-  )
-    .toString()
-    .split(",")[0]
-    .trim();
+    "unknown";
+
+  return String(raw).split(",")[0].trim();
 }
 
-// -----------------------------
-// API key helper
-// -----------------------------
-function getApiKeyFromHeader(req) {
-  const raw = req.headers.authorization || "";
-  const value = String(raw).trim();
+function getDemoId(req) {
+  const raw = req.headers["x-demo-id"];
+  return raw ? String(raw).trim() : null;
+}
 
-  if (!value) return null;
+function parseBody(req) {
+  if (req.body && typeof req.body === "object") return req.body;
 
-  if (/^bearer\s+/i.test(value)) {
-    return value.replace(/^bearer\s+/i, "").trim();
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
   }
 
-  return value;
+  return null;
 }
 
-// -----------------------------
-// Validate API key
-// -----------------------------
-async function validateKey(apiKey) {
-  if (!apiKey) return null;
-
-  const { data, error } = await supabase
-    .from("api_keys")
-    .select("key, user_id")
-    .eq("key", apiKey)
-    .single();
-
-  if (error || !data) return null;
-  return data;
-}
-
-// -----------------------------
-// MAIN HANDLER
-// -----------------------------
 module.exports = async (req, res) => {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "x-api-key, content-type, authorization"
+    "x-api-key, x-demo-id, content-type, authorization"
   );
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
+  }
+
   try {
-    const ip = getIp(req);
-    const apiKey = getApiKeyFromHeader(req);
+    const contentType = String(req.headers["content-type"] || "");
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return res.status(415).json({
+        success: false,
+        error: "Content-Type must be application/json",
+      });
+    }
 
-    let url = req.body?.url || req.query?.url;
+    const body = parseBody(req);
+    if (!body) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid JSON body",
+      });
+    }
 
-    if (!url) {
+    const url = body.url;
+    if (!url || typeof url !== "string") {
       return res.status(400).json({
         success: false,
         error: "URL is required",
       });
     }
 
-    url = normalizeUrl(url);
+    const demoId = getDemoId(req);
+    const ip = getIp(req);
 
-    // Check rate limit (per IP or API key)
-    const rateLimitIdentifier = apiKey || ip;
-    if (isRateLimited(rateLimitIdentifier)) {
+    const usage = await checkUsage(null, ip, demoId);
+
+    if (usage >= FREE_TRIAL_LIMIT) {
       return res.status(429).json({
         success: false,
-        error: "Too many requests. Please wait before retrying.",
+        error: "Free trial limit reached. Login to continue.",
       });
     }
 
-    // -----------------------------
-    // AUTH CHECK
-    // -----------------------------
-    let validApiKey = null;
+    const normalized = normalizeUrl(url);
 
-    if (apiKey) {
-      const keyRow = await validateKey(apiKey);
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Scrape timeout")), 10000)
+    );
 
-      if (!keyRow) {
-        return res.status(401).json({
-          success: false,
-          error: "Invalid API key",
-        });
-      }
-
-      validApiKey = keyRow.key;
-    }
-
-    // -----------------------------
-    // USAGE CHECK (IMPORTANT FIX)
-    // -----------------------------
-    const usage = await checkUsage(validApiKey || ip, ip);
-
-    if (!validApiKey) {
-      if (usage >= FREE_TRIAL_LIMIT) {
-        return res.status(429).json({
-          success: false,
-          error: "Free trial limit reached (4). Login to continue.",
-        });
-      }
-    }
-
-    if (validApiKey && usage >= DAILY_LIMIT) {
-      return res.status(429).json({
-        success: false,
-        error: `Daily limit reached (${DAILY_LIMIT}/day)`,
-      });
-    }
-
-    // -----------------------------
-    // SCRAPE
-    // -----------------------------
-    const { html, source, wasBlocked } = await fetchSmart(url);
-
-    if (!html) {
-      return res.status(422).json({
+    let fetchResult;
+    try {
+      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
+    } catch (err) {
+      console.error("FETCH ERROR:", err);
+      return res.status(500).json({
         success: false,
         error: "Failed to fetch page",
       });
     }
 
-    const article = extractContent(html, url);
+    const html = fetchResult?.html || "";
+    const source = fetchResult?.source || "unknown";
+    const wasBlocked = !!fetchResult?.wasBlocked;
+
+    if (!html) {
+      return res.status(422).json({
+        success: false,
+        error: "No HTML returned",
+      });
+    }
+
+    let article;
+    try {
+      article = extractContent(html, normalized);
+    } catch (err) {
+      console.error("EXTRACT ERROR:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Extraction failed",
+      });
+    }
 
     if (!article?.content) {
       return res.status(422).json({
@@ -191,8 +141,17 @@ module.exports = async (req, res) => {
       });
     }
 
-    let markdown = turndown.turndown(article.content);
-    markdown = cleanMarkdown(markdown);
+    let markdown;
+    try {
+      markdown = turndown.turndown(article.content);
+      markdown = cleanMarkdown(markdown);
+    } catch (err) {
+      console.error("MARKDOWN ERROR:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Markdown conversion failed",
+      });
+    }
 
     if (!markdown || markdown.trim().length < 50) {
       return res.status(422).json({
@@ -201,27 +160,18 @@ module.exports = async (req, res) => {
       });
     }
 
-    // -----------------------------
-    // LOG USAGE (AFTER SUCCESS ONLY)
-    // Log with fallback: if apiKey exists, use it; otherwise log "anonymous"
-    // This ensures both authenticated and anonymous usage is tracked
-    // -----------------------------
-    await logUsage(validApiKey || "anonymous", ip);
+    await logUsage(null, ip, "/api/demo", demoId);
 
-    // -----------------------------
-    // RESPONSE
-    // -----------------------------
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
       source,
-      wasBlocked: !!wasBlocked,
-      markdown,
+      wasBlocked,
       wordCount: getWordCount(article.text || article.content || ""),
+      markdown,
     });
   } catch (err) {
-    console.error("DEMO ERROR:", err);
-
+    console.error("DEMO FATAL ERROR:", err);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
