@@ -10,7 +10,7 @@ const { extractContent } = require("../../lib/extractor");
 const { checkUsage, logUsage, DAILY_LIMIT } = require("../../lib/usage");
 const supabase = require("../../lib/supabase");
 
-const FREE_TRIAL_LIMIT = 3;
+const FREE_TRIAL_LIMIT = 4;
 
 // -----------------------------
 // IP helper
@@ -110,13 +110,15 @@ module.exports = async (req, res) => {
     // -----------------------------
     // USAGE CHECK (IMPORTANT FIX)
     // -----------------------------
-    const usage = await checkUsage(validApiKey, ip);
+    const usage = await checkUsage(validApiKey || ip, ip);
 
-    if (!validApiKey && usage >= FREE_TRIAL_LIMIT) {
-      return res.status(429).json({
-        success: false,
-        error: "Free trial limit reached. Login to continue.",
-      });
+    if (!validApiKey) {
+      if (usage >= FREE_TRIAL_LIMIT) {
+        return res.status(429).json({
+          success: false,
+          error: "Free trial limit reached (4). Login to continue.",
+        });
+      }
     }
 
     if (validApiKey && usage >= DAILY_LIMIT) {
