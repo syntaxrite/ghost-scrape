@@ -7,42 +7,17 @@ const {
   turndown,
 } = require("../lib/utils");
 
-const {
-  getDomain,
-  fetchSmart,
-} = require("../lib/engine");
+const { getDomain, fetchSmart } = require("../lib/engine");
+const { extractContent } = require("../lib/extractor");
 
 const {
-  extractContent,
-} = require("../lib/extractor");
+  checkUsage,
+  checkMonthlyUsage,
+  logUsage,
+  DAILY_LIMIT,
+  MONTHLY_LIMIT,
+} = require("../lib/usage");
 
-const { logUsage } = require("../lib/usage");
-
-console.log("BODY DEBUG:", body);
-console.log("URL DEBUG:", url);
-// -----------------------------
-// Validate API Key
-// -----------------------------
-async function validateKey(key) {
-  if (!key) return null;
-
-  const { data, error } = await supabase
-    .from("api_keys")
-    .select("*")
-    .eq("key", key)
-    .maybeSingle();
-
-  if (error) {
-    console.error("API KEY ERROR:", error);
-    return null;
-  }
-
-  return data || null;
-}
-
-// -----------------------------
-// Extract API key safely
-// -----------------------------
 function getApiKey(req) {
   const auth =
     req.headers?.authorization ||
@@ -67,9 +42,6 @@ function getIp(req) {
   return String(raw).split(",")[0].trim();
 }
 
-// -----------------------------
-// Parse request body safely
-// -----------------------------
 function parseBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
 
@@ -77,23 +49,37 @@ function parseBody(req) {
     try {
       return JSON.parse(req.body);
     } catch {
-      return {};
+      return null;
     }
   }
 
-  return {};
+  return null;
 }
 
-// -----------------------------
-// MAIN HANDLER
-// -----------------------------
+async function validateKey(apiKey) {
+  if (!apiKey) return null;
+
+  const { data, error } = await supabase
+    .from("api_keys")
+    .select("key, user_id")
+    .eq("key", apiKey)
+    .maybeSingle();
+
+  if (error) {
+    console.error("API KEY ERROR:", error);
+    return null;
+  }
+
+  return data || null;
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader(
     "Access-Control-Allow-Headers",
     "x-api-key, content-type, authorization"
   );
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -107,15 +93,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log({
-      event: "SCRAPE_START",
-      method: req.method,
-      origin: req.headers.origin || null,
-    });
-
-    // -----------------------------
-    // 1. AUTH
-    // -----------------------------
     const apiKey = getApiKey(req);
 
     if (!apiKey) {
@@ -125,17 +102,16 @@ module.exports = async (req, res) => {
       });
     }
 
-    const user = await validateKey(apiKey);
+    const keyRow = await validateKey(apiKey);
 
-    if (!user) {
+    if (!keyRow) {
       return res.status(403).json({
         success: false,
         error: "Invalid API key",
       });
     }
 
-    const userId = user.user_id;
-
+    const userId = keyRow.user_id;
     if (!userId) {
       return res.status(500).json({
         success: false,
@@ -143,9 +119,25 @@ module.exports = async (req, res) => {
       });
     }
 
-    // -----------------------------
-    // 2. INPUT URL (canonical contract)
-    // -----------------------------
+    const ip = getIp(req);
+
+    const dailyUsage = await checkUsage(apiKey, ip, null);
+    const monthlyUsage = await checkMonthlyUsage(apiKey);
+
+    if (dailyUsage >= DAILY_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        error: `Daily limit reached (${DAILY_LIMIT}/day)`,
+      });
+    }
+
+    if (monthlyUsage >= MONTHLY_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        error: `Monthly limit reached (${MONTHLY_LIMIT}/month)`,
+      });
+    }
+
     const contentType = String(req.headers["content-type"] || "");
     if (!contentType.toLowerCase().includes("application/json")) {
       return res.status(415).json({
@@ -153,47 +145,38 @@ module.exports = async (req, res) => {
         error: "Content-Type must be application/json",
       });
     }
-let body = {};
 
-try {
-  body =
-    typeof req.body === "string"
-      ? JSON.parse(req.body)
-      : req.body || {};
-} catch {
-  body = {};
-}
-
-const url = body.url;
-
-    if (!url) {
+    const body = parseBody(req);
+    if (!body) {
       return res.status(400).json({
         success: false,
-        error: "URL required",
+        error: "Invalid JSON body",
+      });
+    }
+
+    const url = body.url;
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Valid URL required",
       });
     }
 
     const normalized = normalizeUrl(url);
     const domain = getDomain(normalized);
 
-    // -----------------------------
-    // 3. SCRAPE WITH TIMEOUT
-    // -----------------------------
-    const timeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Scrape timeout")), 10000);
-    });
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Scrape timeout")), 10000)
+    );
 
     let fetchResult;
     try {
-      fetchResult = await Promise.race([
-        fetchSmart(normalized),
-        timeout,
-      ]);
+      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
     } catch (err) {
       console.error("FETCH ERROR:", err);
       return res.status(500).json({
         success: false,
-        error: err.message || "Failed to fetch page",
+        error: "Failed to fetch page",
       });
     }
 
@@ -208,9 +191,6 @@ const url = body.url;
       });
     }
 
-    // -----------------------------
-    // 4. EXTRACT CONTENT
-    // -----------------------------
     let article;
     try {
       article = extractContent(html, normalized);
@@ -229,39 +209,41 @@ const url = body.url;
       });
     }
 
-    // -----------------------------
-    // 5. CONVERT TO MARKDOWN
-    // -----------------------------
-    let markdown = turndown.turndown(article.content);
-    markdown = cleanMarkdown(markdown);
+    let markdown;
+    try {
+      markdown = turndown.turndown(article.content);
+      markdown = cleanMarkdown(markdown);
+    } catch (err) {
+      console.error("MARKDOWN ERROR:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Markdown conversion failed",
+      });
+    }
 
-    const wordCount = getWordCount(
-      article?.text || article?.content || ""
-    );
+    if (!markdown || markdown.trim().length < 50) {
+      return res.status(422).json({
+        success: false,
+        error: "Extraction too weak or blocked page",
+      });
+    }
 
-    // -----------------------------
-    // 6. LOG USAGE (NON-BLOCKING)
-    // -----------------------------
-    logUsage(apiKey, getIp(req)).catch(() => {});
+    await logUsage(apiKey, ip, "/api/scrape", null);
 
-    // -----------------------------
-    // 7. RESPONSE
-    // -----------------------------
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
       domain,
       source,
       wasBlocked,
-      wordCount,
+      wordCount: getWordCount(article.text || article.content || ""),
       markdown,
     });
   } catch (err) {
-    console.error("SCRAPE ERROR:", err);
-
+    console.error("SCRAPE FATAL ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: err.message,
+      error: "Internal server error",
     });
   }
 };
