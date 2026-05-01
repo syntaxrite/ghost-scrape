@@ -231,7 +231,7 @@ module.exports = async (req, res) => {
     // -----------------------------
     // 6. LOG USAGE (NON-BLOCKING)
     // -----------------------------
-    logUsage(apiKey, getIp(req), "/api/scrape").catch(() => {});
+    logUsage(apiKey, getIp(req)).catch(() => {});
 
     // -----------------------------
     // 7. RESPONSE
@@ -250,7 +250,7 @@ module.exports = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: err.message || "Server error",
+      error: err.message,
     });
   }
 };
