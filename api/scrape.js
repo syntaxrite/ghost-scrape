@@ -93,6 +93,15 @@ module.exports = async (req, res) => {
   }
 
   try {
+    console.log("SCRAPE START");
+    console.log("HEADERS:", {
+      "content-type": req.headers["content-type"],
+      origin: req.headers.origin || null,
+    });
+
+    // -----------------------------
+    // AUTH
+    // -----------------------------
     const apiKey = getApiKey(req);
 
     if (!apiKey) {
@@ -121,8 +130,18 @@ module.exports = async (req, res) => {
 
     const ip = getIp(req);
 
-    const dailyUsage = await checkUsage(apiKey, ip, null);
-    const monthlyUsage = await checkMonthlyUsage(apiKey);
+    // -----------------------------
+    // USAGE LIMITS
+    // -----------------------------
+    let dailyUsage = 0;
+    let monthlyUsage = 0;
+
+    try {
+      dailyUsage = await checkUsage(apiKey, ip, null);
+      monthlyUsage = await checkMonthlyUsage(apiKey);
+    } catch (err) {
+      console.error("USAGE SYSTEM ERROR:", err);
+    }
 
     if (dailyUsage >= DAILY_LIMIT) {
       return res.status(429).json({
@@ -138,6 +157,9 @@ module.exports = async (req, res) => {
       });
     }
 
+    // -----------------------------
+    // INPUT
+    // -----------------------------
     const contentType = String(req.headers["content-type"] || "");
     if (!contentType.toLowerCase().includes("application/json")) {
       return res.status(415).json({
@@ -146,16 +168,10 @@ module.exports = async (req, res) => {
       });
     }
 
-    let body = {};
+    const body = parseBody(req);
+    console.log("BODY:", body);
 
-try {
-  body =
-    typeof req.body === "string"
-      ? JSON.parse(req.body)
-      : req.body || {};
-} catch {
-  body = {};
-}
+    if (!body) {
       return res.status(400).json({
         success: false,
         error: "Invalid JSON body",
@@ -173,6 +189,11 @@ try {
     const normalized = normalizeUrl(url);
     const domain = getDomain(normalized);
 
+    console.log("SCRAPING URL:", normalized);
+
+    // -----------------------------
+    // FETCH
+    // -----------------------------
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Scrape timeout")), 10000)
     );
@@ -184,13 +205,20 @@ try {
       console.error("FETCH ERROR:", err);
       return res.status(500).json({
         success: false,
-        error: "Failed to fetch page",
+        error: err.message || "Failed to fetch page",
       });
     }
 
     const html = fetchResult?.html || "";
     const source = fetchResult?.source || "unknown";
     const wasBlocked = !!fetchResult?.wasBlocked;
+
+    console.log("FETCH RESULT:", {
+      hasHtml: !!html,
+      htmlLength: html.length,
+      source,
+      wasBlocked,
+    });
 
     if (!html) {
       return res.status(422).json({
@@ -199,6 +227,9 @@ try {
       });
     }
 
+    // -----------------------------
+    // EXTRACT
+    // -----------------------------
     let article;
     try {
       article = extractContent(html, normalized);
@@ -217,6 +248,9 @@ try {
       });
     }
 
+    // -----------------------------
+    // MARKDOWN
+    // -----------------------------
     let markdown;
     try {
       markdown = turndown.turndown(article.content);
@@ -236,8 +270,18 @@ try {
       });
     }
 
-    await logUsage(apiKey, ip, "/api/scrape", null);
+    // -----------------------------
+    // LOG USAGE
+    // -----------------------------
+    try {
+      await logUsage(apiKey, ip, "/api/scrape", null);
+    } catch (err) {
+      console.error("LOG USAGE ERROR:", err);
+    }
 
+    // -----------------------------
+    // RESPONSE
+    // -----------------------------
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
@@ -251,7 +295,7 @@ try {
     console.error("SCRAPE FATAL ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: "Internal server error",
+      error: err.message || "Internal server error",
     });
   }
 };
