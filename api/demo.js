@@ -60,6 +60,14 @@ function getIp(req) {
 }
 
 // -----------------------------
+// Demo ID helper
+// -----------------------------
+function getDemoId(req) {
+  const raw = req.headers["x-demo-id"];
+  return raw ? String(raw).trim() : null;
+}
+
+// -----------------------------
 // API key helper
 // -----------------------------
 function getApiKeyFromHeader(req) {
@@ -99,7 +107,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "x-api-key, content-type, authorization"
+    "x-api-key, content-type, authorization, x-demo-id"
   );
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 
@@ -110,6 +118,7 @@ module.exports = async (req, res) => {
   try {
     const ip = getIp(req);
     const apiKey = getApiKeyFromHeader(req);
+    const demoId = getDemoId(req);
 
     let url = req.body?.url || req.query?.url;
 
@@ -152,7 +161,7 @@ module.exports = async (req, res) => {
     // -----------------------------
     // USAGE CHECK (IMPORTANT FIX)
     // -----------------------------
-    const usage = await checkUsage(validApiKey || ip, ip);
+    const usage = await checkUsage(validApiKey || ip, ip, demoId);
 
     if (!validApiKey) {
       if (usage >= FREE_TRIAL_LIMIT) {
@@ -206,7 +215,7 @@ module.exports = async (req, res) => {
     // Log with fallback: if apiKey exists, use it; otherwise log "anonymous"
     // This ensures both authenticated and anonymous usage is tracked
     // -----------------------------
-    await logUsage(validApiKey || "anonymous", ip);
+    await logUsage(validApiKey || "anonymous", ip, "/api/demo", demoId);
 
     // -----------------------------
     // RESPONSE

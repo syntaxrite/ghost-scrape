@@ -321,6 +321,21 @@ console.log(data.markdown);</code></pre>
     return localStorage.getItem("ghost_api_key");
   }
 
+  function getDemoId() {
+    let id = localStorage.getItem("ghost_demo_id");
+    if (!id) {
+      if (crypto.randomUUID) {
+        id = crypto.randomUUID();
+      } else {
+        id = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+          (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+      }
+      localStorage.setItem("ghost_demo_id", id);
+    }
+    return id;
+  }
+
   function setDemoHint(isDemo) {
     const hint = document.getElementById("demoHint");
     if (!hint) return;
@@ -382,7 +397,7 @@ console.log(data.markdown);</code></pre>
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(apiKey ? { "x-api-key": apiKey } : {})
+          ...(apiKey ? { "x-api-key": apiKey } : { "x-demo-id": getDemoId() })
         },
         body: JSON.stringify({ url })
       });
