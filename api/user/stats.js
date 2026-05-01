@@ -1,85 +1,104 @@
 const supabase = require("../../lib/supabase");
+const {
+  checkUsage,
+  checkMonthlyUsage,
+  DAILY_LIMIT,
+  MONTHLY_LIMIT,
+} = require("../../lib/usage");
+
+function getApiKey(req) {
+  const auth =
+    req.headers?.authorization ||
+    req.headers?.Authorization ||
+    req.headers?.["x-api-key"];
+
+  if (!auth || typeof auth !== "string") return null;
+
+  if (auth.startsWith("Bearer ")) {
+    return auth.slice(7).trim();
+  }
+
+  return auth.trim();
+}
+
+function getIp(req) {
+  const raw =
+    req.headers["x-forwarded-for"] ||
+    req.socket?.remoteAddress ||
+    "unknown";
+
+  return String(raw).split(",")[0].trim();
+}
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
+  }
+
   try {
-    const apiKey = req.headers["x-api-key"];
+    const apiKey = getApiKey(req);
 
     if (!apiKey) {
       return res.status(401).json({
         success: false,
-        error: "No API key provided",
+        error: "API key required",
       });
     }
 
     const { data: keyRow, error: keyError } = await supabase
       .from("api_keys")
-      .select("*")
-      .eq("key", apiKey)
+      .select("user_id")
+      .eq("key", apiKey.trim())
+      .limit(1)
       .maybeSingle();
 
     if (keyError) {
-      console.error("API Key Query Error:", keyError);
+      console.error("API key lookup error:", keyError);
       return res.status(500).json({
         success: false,
-        error: "Database error (api_keys)",
+        error: "Database error",
       });
     }
 
     if (!keyRow) {
-      return res.status(401).json({
+      return res.status(403).json({
         success: false,
         error: "Invalid API key",
       });
     }
 
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", keyRow.user_id)
-      .maybeSingle();
+    const ip = getIp(req);
 
-    if (userError || !user) {
-      console.error("User Fetch Error:", userError);
-      return res.status(500).json({
-        success: false,
-        error: "User not found",
-      });
-    }
+    let dailyUsed = 0;
+    let monthlyUsed = 0;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const { count, error: usageError } = await supabase
-      .from("usage_log")
-      .select("*", { count: "exact", head: true })
-      .eq("api_key", apiKey)
-      .gte("created_at", today.toISOString());
-
-    if (usageError) {
-      console.error("Usage Query Error:", usageError);
-      return res.status(500).json({
-        success: false,
-        error: "Usage tracking failed",
-      });
+    try {
+      dailyUsed = await checkUsage(apiKey.trim(), ip, null);
+      monthlyUsed = await checkMonthlyUsage(apiKey.trim());
+    } catch (err) {
+      console.error("Usage lookup error:", err);
     }
 
     return res.status(200).json({
       success: true,
-      email: user.email,
-      apiKey,
-      usageToday: count || 0,
-      limit: 10,
+      daily_used: dailyUsed,
+      daily_limit: DAILY_LIMIT,
+      monthly_used: monthlyUsed,
+      monthly_limit: MONTHLY_LIMIT,
     });
   } catch (err) {
-    console.error("Server Error:", err);
+    console.error("USER STATS ERROR:", err);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
