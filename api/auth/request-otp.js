@@ -1,7 +1,10 @@
+const crypto = require("node:crypto");
 const { Resend } = require("resend");
 const supabase = require("../../lib/supabase");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 function parseBody(req) {
   if (typeof req.body === "object" && req.body !== null) return req.body;
@@ -15,7 +18,17 @@ function parseBody(req) {
   return null;
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
 module.exports = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "content-type");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -43,14 +56,21 @@ module.exports = async (req, res) => {
 
     const email = String(body.email || "").toLowerCase().trim();
 
-    if (!email) {
+    if (!email || !isValidEmail(email)) {
       return res.status(400).json({
         success: false,
-        error: "Email required",
+        error: "Valid email required",
       });
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    if (!resend || !process.env.RESEND_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "Email service not configured",
+      });
+    }
+
+    const code = generateOtp();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     const { error: deleteError } = await supabase
@@ -88,7 +108,7 @@ module.exports = async (req, res) => {
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
           <h2>Your OTP Code</h2>
           <p>Your one-time code is:</p>
-          <h1>${code}</h1>
+          <h1 style="letter-spacing: 6px;">${code}</h1>
           <p>This code expires in 5 minutes.</p>
         </div>
       `,
