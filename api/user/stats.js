@@ -14,7 +14,7 @@ function getApiKey(req) {
 
   if (!auth || typeof auth !== "string") return null;
 
-  if (auth.startsWith("Bearer ")) {
+  if (/^bearer\s+/i.test(auth)) {
     return auth.slice(7).trim();
   }
 
@@ -24,6 +24,7 @@ function getApiKey(req) {
 function getIp(req) {
   const raw =
     req.headers["x-forwarded-for"] ||
+    req.headers["x-real-ip"] ||
     req.socket?.remoteAddress ||
     "unknown";
 
@@ -32,6 +33,7 @@ function getIp(req) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
