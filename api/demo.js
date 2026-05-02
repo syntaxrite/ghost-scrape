@@ -3,13 +3,24 @@ const {
   getWordCount,
   cleanMarkdown,
   turndown,
-} = require("../../lib/utils");
+} = require("../lib/utils");
 
-const { fetchSmart } = require("../../lib/engine");
-const { extractContent } = require("../../lib/extractor");
-const { checkUsage, logUsage } = require("../../lib/usage");
+const { fetchSmart } = require("../lib/engine");
+const { extractContent } = require("../lib/extractor");
+const {
+  checkUsage,
+  checkMonthlyUsage,
+  logUsage,
+  DAILY_LIMIT,
+  MONTHLY_LIMIT,
+} = require("../lib/usage");
 
-const FREE_TRIAL_LIMIT = 4;
+const supabase = require("../lib/supabase");
+
+const burstCache = Object.create(null);
+const BURST_WINDOW = 5000;
+const BURST_LIMIT = 2;
+const FREE_TRIAL_LIMIT = 3;
 
 function getIp(req) {
   const raw =
@@ -20,161 +31,158 @@ function getIp(req) {
   return String(raw).split(",")[0].trim();
 }
 
-function getDemoId(req) {
-  const raw = req.headers["x-demo-id"];
-  return raw ? String(raw).trim() : null;
-}
+function getApiKeyFromHeader(req) {
+  const raw = req.headers.authorization || req.headers.Authorization || "";
+  const value = String(raw).trim();
+  if (!value) return null;
 
-function parseBody(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-
-  if (typeof req.body === "string") {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return null;
-    }
+  if (/^bearer\s+/i.test(value)) {
+    return value.replace(/^bearer\s+/i, "").trim();
   }
 
-  return null;
+  return value;
+}
+
+async function validateKey(apiKey) {
+  const { data, error } = await supabase
+    .from("api_keys")
+    .select("key, user_id")
+    .eq("key", apiKey)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data;
+}
+
+function burstKey(apiKey, ip) {
+  return apiKey || ip || "unknown";
+}
+
+function hitBurstLimit(identifier) {
+  const now = Date.now();
+  if (!burstCache[identifier]) burstCache[identifier] = [];
+
+  burstCache[identifier] = burstCache[identifier].filter((t) => now - t < BURST_WINDOW);
+
+  if (burstCache[identifier].length >= BURST_LIMIT) return true;
+
+  burstCache[identifier].push(now);
+  return false;
 }
 
 module.exports = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "x-api-key, x-demo-id, content-type, authorization"
-  );
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed",
-    });
-  }
-
   try {
-    const contentType = String(req.headers["content-type"] || "");
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return res.status(415).json({
+    const ip = getIp(req);
+    const apiKey = getApiKeyFromHeader(req);
+
+    const identifier = burstKey(apiKey, ip);
+    if (hitBurstLimit(identifier)) {
+      return res.status(429).json({
         success: false,
-        error: "Content-Type must be application/json",
+        error: "Too many requests. Slow down.",
       });
     }
 
-    const body = parseBody(req);
-    if (!body) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid JSON body",
-      });
-    }
-
-    const url = body.url;
-    if (!url || typeof url !== "string") {
+    let url = req.body?.url || req.query?.url;
+    if (!url) {
       return res.status(400).json({
         success: false,
         error: "URL is required",
       });
     }
 
-    const demoId = getDemoId(req);
-    const ip = getIp(req);
+    url = normalizeUrl(url);
 
-    const usage = await checkUsage(null, ip, demoId);
+    let validApiKey = null;
 
-    if (usage >= FREE_TRIAL_LIMIT) {
+    if (apiKey) {
+      const keyRow = await validateKey(apiKey);
+      if (!keyRow) {
+        return res.status(401).json({
+          success: false,
+          error: "Invalid API key",
+        });
+      }
+
+      validApiKey = keyRow.key;
+    }
+
+    // Free trial or authenticated usage
+    const usage = await checkUsage(validApiKey, ip);
+
+    if (!validApiKey && usage >= FREE_TRIAL_LIMIT) {
       return res.status(429).json({
         success: false,
         error: "Free trial limit reached. Login to continue.",
       });
     }
 
-    const normalized = normalizeUrl(url);
-
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Scrape timeout")), 10000)
-    );
-
-    let fetchResult;
-    try {
-      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
-    } catch (err) {
-      console.error("FETCH ERROR:", err);
-      return res.status(500).json({
+    if (validApiKey && usage >= DAILY_LIMIT) {
+      return res.status(429).json({
         success: false,
-        error: "Failed to fetch page",
+        error: `Daily limit reached (${DAILY_LIMIT}/day)`,
       });
     }
 
-    const html = fetchResult?.html || "";
-    const source = fetchResult?.source || "unknown";
-    const wasBlocked = !!fetchResult?.wasBlocked;
+    const monthlyUsage = validApiKey ? await checkMonthlyUsage(validApiKey, ip) : 0;
+    if (validApiKey && monthlyUsage >= MONTHLY_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        error: `Monthly limit reached (${MONTHLY_LIMIT}/month)`,
+      });
+    }
 
-    if (!html) {
+    // Count the attempt after passing limits
+    await logUsage(validApiKey, ip, "/api/demo");
+
+    const { html, source, wasBlocked, sourceType, canonicalUrl } = await fetchSmart(url);
+    const article = extractContent(html, url, { sourceType, canonicalUrl });
+
+    if (!article) {
       return res.status(422).json({
         success: false,
-        error: "No HTML returned",
+        error: "Could not extract content",
       });
     }
 
-    let article;
-    try {
-      article = extractContent(html, normalized);
-    } catch (err) {
-      console.error("EXTRACT ERROR:", err);
-      return res.status(500).json({
-        success: false,
-        error: "Extraction failed",
-      });
-    }
-
-    if (!article?.content) {
+    if (article.protected) {
       return res.status(422).json({
         success: false,
-        error: "Content unreadable",
+        error: article.reason || "Protected or login wall",
       });
     }
 
-    let markdown;
-    try {
-      markdown = turndown.turndown(article.content);
-      markdown = cleanMarkdown(markdown);
-    } catch (err) {
-      console.error("MARKDOWN ERROR:", err);
-      return res.status(500).json({
-        success: false,
-        error: "Markdown conversion failed",
-      });
-    }
-
-    if (!markdown || markdown.trim().length < 50) {
-      return res.status(422).json({
-        success: false,
-        error: "Extraction too weak or blocked page",
-      });
-    }
-
-    await logUsage(null, ip, "/api/demo", demoId);
+    let markdown = turndown.turndown(article.content);
+    markdown = cleanMarkdown(markdown);
 
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
       source,
-      wasBlocked,
+      sourceType: article.sourceType || sourceType || "generic",
+      canonicalUrl: canonicalUrl || url,
+      wasBlocked: !!wasBlocked,
+      markdown: markdown.slice(0, 12000),
       wordCount: getWordCount(article.text || article.content || ""),
-      markdown,
+      excerpt: article.excerpt || "",
+      headings: article.headings || [],
+      author: article.author || "",
+      publishedAt: article.publishedAt || "",
     });
   } catch (err) {
-    console.error("DEMO FATAL ERROR:", err);
+    console.error("DEMO ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: "Internal server error",
+      error: err.message || "Internal server error",
     });
   }
 };
