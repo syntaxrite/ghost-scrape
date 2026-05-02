@@ -17,6 +17,10 @@ const {
 } = require("../lib/usage");
 const { validateKey } = require("../lib/auth");
 
+/* =========================
+   HELPERS
+========================= */
+
 function getApiKey(req) {
   const auth =
     req.headers?.authorization ||
@@ -56,6 +60,10 @@ function parseBody(req) {
   return {};
 }
 
+/* =========================
+   BURST PROTECTION
+========================= */
+
 const burstCache = Object.create(null);
 const BURST_WINDOW = 5000;
 const BURST_LIMIT = 3;
@@ -68,7 +76,9 @@ function hitBurstLimit(identifier) {
   const now = Date.now();
   if (!burstCache[identifier]) burstCache[identifier] = [];
 
-  burstCache[identifier] = burstCache[identifier].filter((t) => now - t < BURST_WINDOW);
+  burstCache[identifier] = burstCache[identifier].filter(
+    (t) => now - t < BURST_WINDOW
+  );
 
   if (burstCache[identifier].length >= BURST_LIMIT) return true;
 
@@ -76,13 +86,20 @@ function hitBurstLimit(identifier) {
   return false;
 }
 
+/* =========================
+   MAIN HANDLER
+========================= */
+
 module.exports = async (req, res) => {
   const startTime = Date.now();
 
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "x-api-key, content-type, authorization"
+  );
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
@@ -105,6 +122,10 @@ module.exports = async (req, res) => {
     apiKey = getApiKey(req);
     ip = getIp(req);
 
+    /* =========================
+       BURST LIMIT
+    ========================= */
+
     const identifier = burstKey(apiKey, ip);
     if (hitBurstLimit(identifier)) {
       return res.status(429).json({
@@ -112,6 +133,10 @@ module.exports = async (req, res) => {
         error: "Too many requests. Slow down.",
       });
     }
+
+    /* =========================
+       AUTH
+    ========================= */
 
     if (!apiKey) {
       return res.status(401).json({
@@ -127,6 +152,10 @@ module.exports = async (req, res) => {
         error: "Invalid API key",
       });
     }
+
+    /* =========================
+       USAGE LIMITS
+    ========================= */
 
     const dailyUsed = await checkUsage(apiKey, ip);
     if (dailyUsed >= DAILY_LIMIT) {
@@ -144,6 +173,10 @@ module.exports = async (req, res) => {
       });
     }
 
+    /* =========================
+       CONTENT TYPE
+    ========================= */
+
     const contentType = String(req.headers["content-type"] || "");
     if (!contentType.toLowerCase().includes("application/json")) {
       return res.status(415).json({
@@ -152,24 +185,44 @@ module.exports = async (req, res) => {
       });
     }
 
+    /* =========================
+       BODY + URL FIX (IMPORTANT)
+    ========================= */
+
     const body = parseBody(req);
-    if (!body.url) {
+
+    const url =
+      typeof body.url === "string" ? body.url.trim() : "";
+
+    if (!url) {
       return res.status(400).json({
         success: false,
-        error: "URL required",
+        error: "URL is required",
       });
     }
 
-    normalized = await validatePublicUrl(body.url);
+    /* =========================
+       VALIDATE URL (SSRF SAFE)
+    ========================= */
+
+    normalized = await validatePublicUrl(url);
     domain = getDomain(normalized);
+
+    /* =========================
+       FETCH (WITH TIMEOUT)
+    ========================= */
 
     const timeout = new Promise((_, reject) => {
       setTimeout(() => reject(new Error("Scrape timeout")), 20000);
     });
 
     let fetchResult;
+
     try {
-      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
+      fetchResult = await Promise.race([
+        fetchSmart(normalized),
+        timeout,
+      ]);
     } catch (err) {
       console.error("FETCH ERROR:", err);
       return res.status(502).json({
@@ -178,7 +231,12 @@ module.exports = async (req, res) => {
       });
     }
 
+    /* =========================
+       HTML CHECK
+    ========================= */
+
     const html = fetchResult?.html || "";
+
     if (!html) {
       return res.status(422).json({
         success: false,
@@ -186,7 +244,12 @@ module.exports = async (req, res) => {
       });
     }
 
+    /* =========================
+       CONTENT EXTRACTION
+    ========================= */
+
     const article = extractContent(html, normalized, fetchResult);
+
     if (!article) {
       return res.status(422).json({
         success: false,
@@ -201,12 +264,24 @@ module.exports = async (req, res) => {
       });
     }
 
+    /* =========================
+       MARKDOWN
+    ========================= */
+
     let markdown = turndown.turndown(article.content || "");
     markdown = cleanMarkdown(markdown);
+
+    /* =========================
+       LOG USAGE (ASYNC)
+    ========================= */
 
     logUsage(apiKey, ip, "/api/scrape").catch((err) => {
       console.error("USAGE LOG FAILED:", err);
     });
+
+    /* =========================
+       RESPONSE
+    ========================= */
 
     return res.status(200).json({
       success: true,
@@ -214,7 +289,10 @@ module.exports = async (req, res) => {
       domain,
       canonicalUrl: fetchResult.canonicalUrl || normalized,
       source: fetchResult.source || "unknown",
-      sourceType: article.sourceType || fetchResult.sourceType || "generic",
+      sourceType:
+        article.sourceType ||
+        fetchResult.sourceType ||
+        "generic",
       wasBlocked: !!fetchResult.wasBlocked,
       wordCount: getWordCount(article.text || ""),
       excerpt: article.excerpt || "",
