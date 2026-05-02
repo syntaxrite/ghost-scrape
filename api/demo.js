@@ -80,6 +80,13 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  if (!["GET", "POST"].includes(req.method)) {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
+  }
+
   try {
     const ip = getIp(req);
     const apiKey = getApiKeyFromHeader(req);
@@ -116,7 +123,6 @@ module.exports = async (req, res) => {
       validApiKey = keyRow.key;
     }
 
-    // Free trial or authenticated usage
     const usage = await checkUsage(validApiKey, ip);
 
     if (!validApiKey && usage >= FREE_TRIAL_LIMIT) {
@@ -141,10 +147,24 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Count the attempt after passing limits
-    await logUsage(validApiKey, ip, "/api/demo");
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Scrape timeout")), 15000);
+    });
 
-    const { html, source, wasBlocked, sourceType, canonicalUrl } = await fetchSmart(url);
+    let fetchResult;
+    try {
+      fetchResult = await Promise.race([
+        fetchSmart(url),
+        timeout,
+      ]);
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        error: err.message || "Failed to fetch page",
+      });
+    }
+
+    const { html, source, wasBlocked, sourceType, canonicalUrl } = fetchResult;
     const article = extractContent(html, url, { sourceType, canonicalUrl });
 
     if (!article) {
@@ -164,6 +184,11 @@ module.exports = async (req, res) => {
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
+    // Log only after success.
+    logUsage(validApiKey, ip, "/api/demo").catch((err) => {
+      console.error("USAGE LOG (non-blocking) failed:", err);
+    });
+
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
@@ -179,10 +204,15 @@ module.exports = async (req, res) => {
       publishedAt: article.publishedAt || "",
     });
   } catch (err) {
-    console.error("DEMO ERROR:", err);
+    console.error("DEMO ERROR FULL:", {
+      message: err.message,
+      stack: err.stack,
+      response: err.response?.data,
+    });
+
     return res.status(500).json({
       success: false,
-      error: err.message || "Internal server error",
+      error: "Internal server error",
     });
   }
 };
