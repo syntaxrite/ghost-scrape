@@ -31,6 +31,7 @@ function getIp(req) {
 }
 
 module.exports = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -84,8 +85,8 @@ module.exports = async (req, res) => {
     let monthlyUsed = 0;
 
     try {
-      dailyUsed = await checkUsage(apiKey.trim(), ip, null);
-      monthlyUsed = await checkMonthlyUsage(apiKey.trim());
+      dailyUsed = await checkUsage(apiKey.trim(), ip);
+      monthlyUsed = await checkMonthlyUsage(apiKey.trim(), ip);
     } catch (err) {
       console.error("Usage lookup error:", err);
     }
