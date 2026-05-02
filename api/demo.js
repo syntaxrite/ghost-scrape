@@ -1,5 +1,5 @@
 const {
-  normalizeUrl,
+  validatePublicUrl,
   getWordCount,
   cleanMarkdown,
   turndown,
@@ -14,17 +14,14 @@ const {
   DAILY_LIMIT,
   MONTHLY_LIMIT,
 } = require("../lib/usage");
+const { validateKey } = require("../lib/auth");
 
-const supabase = require("../lib/supabase");
-
-const burstCache = Object.create(null);
-const BURST_WINDOW = 5000;
-const BURST_LIMIT = 2;
 const FREE_TRIAL_LIMIT = 3;
 
 function getIp(req) {
   const raw =
     req.headers["x-forwarded-for"] ||
+    req.headers["x-real-ip"] ||
     req.socket?.remoteAddress ||
     "unknown";
 
@@ -43,16 +40,23 @@ function getApiKeyFromHeader(req) {
   return value;
 }
 
-async function validateKey(apiKey) {
-  const { data, error } = await supabase
-    .from("api_keys")
-    .select("key, user_id")
-    .eq("key", apiKey)
-    .maybeSingle();
+function parseBody(req) {
+  if (req.body && typeof req.body === "object") return req.body;
 
-  if (error || !data) return null;
-  return data;
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
 }
+
+const burstCache = Object.create(null);
+const BURST_WINDOW = 5000;
+const BURST_LIMIT = 2;
 
 function burstKey(apiKey, ip) {
   return apiKey || ip || "unknown";
@@ -72,6 +76,7 @@ function hitBurstLimit(identifier) {
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -99,7 +104,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    let url = req.body?.url || req.query?.url;
+    const body = parseBody(req);
+    const url = body.url || req.query?.url;
     if (!url) {
       return res.status(400).json({
         success: false,
@@ -107,7 +113,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    url = normalizeUrl(url);
+    const normalized = await validatePublicUrl(url);
 
     let validApiKey = null;
 
@@ -148,15 +154,12 @@ module.exports = async (req, res) => {
     }
 
     const timeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Scrape timeout")), 15000);
+      setTimeout(() => reject(new Error("Scrape timeout")), 20000);
     });
 
     let fetchResult;
     try {
-      fetchResult = await Promise.race([
-        fetchSmart(url),
-        timeout,
-      ]);
+      fetchResult = await Promise.race([fetchSmart(normalized), timeout]);
     } catch (err) {
       return res.status(502).json({
         success: false,
@@ -164,8 +167,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    const { html, source, wasBlocked, sourceType, canonicalUrl } = fetchResult;
-    const article = extractContent(html, url, { sourceType, canonicalUrl });
+    const html = fetchResult?.html || "";
+    const article = extractContent(html, normalized, fetchResult);
 
     if (!article) {
       return res.status(422).json({
@@ -181,10 +184,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    let markdown = turndown.turndown(article.content);
+    let markdown = turndown.turndown(article.content || "");
     markdown = cleanMarkdown(markdown);
 
-    // Log only after success.
     logUsage(validApiKey, ip, "/api/demo").catch((err) => {
       console.error("USAGE LOG (non-blocking) failed:", err);
     });
@@ -192,10 +194,10 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
-      source,
-      sourceType: article.sourceType || sourceType || "generic",
-      canonicalUrl: canonicalUrl || url,
-      wasBlocked: !!wasBlocked,
+      source: fetchResult.source || "unknown",
+      sourceType: article.sourceType || fetchResult.sourceType || "generic",
+      canonicalUrl: fetchResult.canonicalUrl || normalized,
+      wasBlocked: !!fetchResult.wasBlocked,
       markdown: markdown.slice(0, 12000),
       wordCount: getWordCount(article.text || article.content || ""),
       excerpt: article.excerpt || "",
