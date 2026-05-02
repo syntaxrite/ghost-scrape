@@ -1,7 +1,14 @@
 const supabase = require("../lib/supabase");
-const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
+const {
+  normalizeUrl,
+  getWordCount,
+  cleanMarkdown,
+  turndown,
+} = require("../lib/utils");
+
 const { getDomain, fetchSmart } = require("../lib/engine");
 const { extractContent } = require("../lib/extractor");
+
 const {
   logUsage,
   checkUsage,
@@ -65,19 +72,21 @@ function parseBody(req) {
   return {};
 }
 
-function burstKey(apiKey, ip) {
-  return apiKey || ip || "unknown";
-}
-
 const burstCache = Object.create(null);
 const BURST_WINDOW = 5000;
 const BURST_LIMIT = 3;
+
+function burstKey(apiKey, ip) {
+  return apiKey || ip || "unknown";
+}
 
 function hitBurstLimit(identifier) {
   const now = Date.now();
   if (!burstCache[identifier]) burstCache[identifier] = [];
 
-  burstCache[identifier] = burstCache[identifier].filter((t) => now - t < BURST_WINDOW);
+  burstCache[identifier] = burstCache[identifier].filter(
+    (t) => now - t < BURST_WINDOW
+  );
 
   if (burstCache[identifier].length >= BURST_LIMIT) return true;
 
@@ -86,10 +95,15 @@ function hitBurstLimit(identifier) {
 }
 
 module.exports = async (req, res) => {
+  const startTime = Date.now();
+
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Headers", "x-api-key, content-type, authorization");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "x-api-key, content-type, authorization"
+  );
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -102,9 +116,14 @@ module.exports = async (req, res) => {
     });
   }
 
+  let apiKey;
+  let ip;
+  let normalized;
+  let domain;
+
   try {
-    const apiKey = getApiKey(req);
-    const ip = getIp(req);
+    apiKey = getApiKey(req);
+    ip = getIp(req);
 
     const identifier = burstKey(apiKey, ip);
     if (hitBurstLimit(identifier)) {
@@ -154,17 +173,23 @@ module.exports = async (req, res) => {
     }
 
     const body = parseBody(req);
-    const url = body.url;
-
-    if (!url) {
+    if (!body.url) {
       return res.status(400).json({
         success: false,
         error: "URL required",
       });
     }
 
-    const normalized = normalizeUrl(url);
-    const domain = getDomain(normalized);
+    try {
+      normalized = normalizeUrl(body.url);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid URL",
+      });
+    }
+
+    domain = getDomain(normalized);
 
     const timeout = new Promise((_, reject) => {
       setTimeout(() => reject(new Error("Scrape timeout")), 15000);
@@ -210,9 +235,9 @@ module.exports = async (req, res) => {
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
-    // Log only after success.
+    // Log only successful scrapes.
     logUsage(apiKey, ip, "/api/scrape").catch((err) => {
-      console.error("USAGE LOG (non-blocking) failed:", err);
+      console.error("USAGE LOG FAILED:", err);
     });
 
     return res.status(200).json({
@@ -228,13 +253,15 @@ module.exports = async (req, res) => {
       headings: article.headings || [],
       author: article.author || "",
       publishedAt: article.publishedAt || "",
+      duration_ms: Date.now() - startTime,
       markdown,
     });
   } catch (err) {
     console.error("SCRAPE ERROR FULL:", {
       message: err.message,
       stack: err.stack,
-      response: err.response?.data,
+      url: normalized,
+      domain,
     });
 
     return res.status(500).json({
