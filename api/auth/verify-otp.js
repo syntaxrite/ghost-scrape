@@ -1,5 +1,5 @@
 const supabase = require("../../lib/supabase");
-const crypto = require("crypto");
+const crypto = require("node:crypto");
 
 function generateApiKey() {
   return "ghost_" + crypto.randomBytes(24).toString("hex");
@@ -18,6 +18,8 @@ function parseBody(req) {
 }
 
 module.exports = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "content-type, x-api-key");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -115,7 +117,7 @@ module.exports = async (req, res) => {
 
     const { data: existingKey, error: keyLookupError } = await supabase
       .from("api_keys")
-      .select("*")
+      .select("key")
       .eq("user_id", user.id)
       .maybeSingle();
 
