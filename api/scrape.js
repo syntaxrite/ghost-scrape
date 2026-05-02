@@ -2,7 +2,13 @@ const supabase = require("../lib/supabase");
 const { normalizeUrl, getWordCount, cleanMarkdown, turndown } = require("../lib/utils");
 const { getDomain, fetchSmart } = require("../lib/engine");
 const { extractContent } = require("../lib/extractor");
-const { logUsage, checkUsage, checkMonthlyUsage, DAILY_LIMIT, MONTHLY_LIMIT } = require("../lib/usage");
+const {
+  logUsage,
+  checkUsage,
+  checkMonthlyUsage,
+  DAILY_LIMIT,
+  MONTHLY_LIMIT,
+} = require("../lib/usage");
 
 async function validateKey(key) {
   if (!key) return null;
@@ -160,9 +166,6 @@ module.exports = async (req, res) => {
     const normalized = normalizeUrl(url);
     const domain = getDomain(normalized);
 
-    // Count the attempt once it has passed auth + rate limit
-    await logUsage(apiKey, ip, "/api/scrape");
-
     const timeout = new Promise((_, reject) => {
       setTimeout(() => reject(new Error("Scrape timeout")), 15000);
     });
@@ -174,7 +177,8 @@ module.exports = async (req, res) => {
         timeout,
       ]);
     } catch (err) {
-      return res.status(500).json({
+      console.error("FETCH ERROR:", err);
+      return res.status(502).json({
         success: false,
         error: err.message || "Failed to fetch page",
       });
@@ -206,6 +210,11 @@ module.exports = async (req, res) => {
     let markdown = turndown.turndown(article.content);
     markdown = cleanMarkdown(markdown);
 
+    // Log only after success.
+    logUsage(apiKey, ip, "/api/scrape").catch((err) => {
+      console.error("USAGE LOG (non-blocking) failed:", err);
+    });
+
     return res.status(200).json({
       success: true,
       title: article.title || "Untitled",
@@ -222,7 +231,12 @@ module.exports = async (req, res) => {
       markdown,
     });
   } catch (err) {
-    console.error("SCRAPE ERROR:", err);
+    console.error("SCRAPE ERROR FULL:", {
+      message: err.message,
+      stack: err.stack,
+      response: err.response?.data,
+    });
+
     return res.status(500).json({
       success: false,
       error: err.message || "Server error",
