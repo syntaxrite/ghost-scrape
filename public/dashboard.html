@@ -255,7 +255,7 @@
         <div class="grid gap-4">
           <div class="rounded-2xl bg-black/70 border border-white/10 p-4 overflow-x-auto">
             <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">cURL</div>
-            <pre class="text-xs leading-6 text-slate-200">curl -X POST https://YOUR_DOMAIN/api/scrape \
+            <pre class="text-xs leading-6 text-slate-200">curl -X POST https://ghost-scrape.tech/api/scrape \
   -H "Content-Type: application/json" \
   -H "x-api-key: YOUR_KEY" \
   -d '{"url":"https://example.com"}'</pre>
@@ -264,7 +264,7 @@
           <div class="grid md:grid-cols-2 gap-4">
             <div class="rounded-2xl bg-black/70 border border-white/10 p-4 overflow-x-auto">
               <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">Node.js</div>
-              <pre class="text-xs leading-6 text-slate-200">const res = await fetch("https://YOUR_DOMAIN/api/scrape", {
+              <pre class="text-xs leading-6 text-slate-200">const res = await fetch("https://ghost-scrape.tech/api/scrape", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -283,7 +283,7 @@ console.log(data.markdown);</pre>
 import requests
 
 res = requests.post(
-    "https://YOUR_DOMAIN/api/scrape",
+    "https://ghost-scrape.tech/api/scrape",
     headers={"x-api-key": os.getenv("GHOST_API_KEY")},
     json={"url": "https://example.com"}
 )
