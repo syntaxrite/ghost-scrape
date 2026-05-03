@@ -1,12 +1,8 @@
 {
-  "version": 2,
-  "env": {
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_KEY": "@supabase_service_key",
-    "RESEND_API_KEY": "@resend_api_key",
-    "EMAIL_FROM": "@email_from",
-    "RESIDENTIAL_PROXIES": "@residential_proxies",
-    "BROWSERLESS_URL": "@browserless_url",
-    "BROWSERLESS_TOKEN": "@browserless_token"
+  "framework": "nextjs",
+  "functions": {
+    "app/api/**/*.route.js": {
+      "maxDuration": 30
+    }
   }
 }
