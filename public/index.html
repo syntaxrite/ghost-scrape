@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghost Scrape — Clean Markdown for LLMs</title>
+  <meta name="description" content="Ghost Scrape turns public webpages into clean Markdown, metadata, and structure for LLM and RAG pipelines." />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="canonical" href="https://ghost-scrape.tech/" />
+  <meta property="og:site_name" content="Ghost Scrape" />
+  <meta property="og:title" content="Ghost Scrape — Clean Markdown for LLMs" />
+  <meta property="og:description" content="Ghost Scrape turns public webpages into clean Markdown, metadata, and structure for LLM and RAG pipelines." />
+  <meta property="og:url" content="https://ghost-scrape.tech/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/logo-512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/logo-32.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      background:
+        radial-gradient(circle at top, rgba(168,85,247,0.17), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,0.12), transparent 28%),
+        #050816;
+      color: #fff;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .glass { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); backdrop-filter: blur(20px); box-shadow: 0 24px 60px rgba(0,0,0,0.28); }
+    .soft-border { border: 1px solid rgba(255,255,255,0.09); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .btn-primary { background: linear-gradient(135deg, #7c3aed, #4f46e5); box-shadow: 0 18px 35px rgba(124,58,237,0.28); }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-ghost { background: rgba(255,255,255,0.05); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); }
+    .grid-dot { background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; }
+    .safe-scroll { overflow-wrap: anywhere; white-space: pre-wrap; word-break: break-word; }
+  </style>
+
+</head>
+<body class="min-h-screen">
+
+<header class="sticky top-0 z-50 border-b border-white/5 bg-[#050816]/85 backdrop-blur-xl">
+  <nav class="max-w-7xl mx-auto px-5 md:px-8 py-4 flex items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-3 group">
+      <div class="p-2 rounded-2xl bg-purple-600/95 group-hover:rotate-6 transition-transform">
+        <i data-lucide="ghost" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="font-black tracking-tight text-lg md:text-xl">ghost-scrape<span class="text-purple-400">.tech</span></div>
+        <div class="text-[10px] uppercase tracking-[0.28em] text-slate-500">clean llm-ready markdown</div>
+      </div>
+    </a>
+    <div class="flex items-center gap-2 md:gap-3 text-sm">
+      <a href="/docs" class="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5">Docs</a>
+      <a href="/status" class="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5">Status</a>
+      <a href="/login" class="px-4 py-2 rounded-xl btn-primary font-semibold">Log in</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <section class="max-w-7xl mx-auto px-5 md:px-8 pt-14 md:pt-20 pb-10">
+    <div class="grid lg:grid-cols-2 gap-8 items-center">
+      <div class="space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/25 bg-purple-500/10 text-purple-200 text-xs font-bold uppercase tracking-[0.22em]">
+          Built for devs, agents, and RAG pipelines
+        </div>
+        <div>
+          <h1 class="text-4xl md:text-6xl font-black leading-[1.02] max-w-xl">Turn any public page into clean Markdown.</h1>
+          <p class="mt-5 text-base md:text-lg text-slate-300 leading-8 max-w-2xl">
+            Ghost Scrape extracts readable content, metadata, and structure from messy webpages, dynamic sites, and JSON-heavy responses, then returns output that is easy to feed into LLM workflows.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <a href="/login" class="px-5 py-3 rounded-2xl btn-primary font-bold">Get your free key</a>
+          <a href="/docs" class="px-5 py-3 rounded-2xl btn-ghost soft-border font-bold">Read docs</a>
+        </div>
+        <div class="grid sm:grid-cols-3 gap-3 max-w-2xl">
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Monthly free tier</div>
+            <div class="mt-2 text-2xl font-black">300 requests</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Output</div>
+            <div class="mt-2 text-2xl font-black">Markdown</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Fallbacks</div>
+            <div class="mt-2 text-2xl font-black">Multi-layer</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-[2rem] p-5 md:p-6 soft-border">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Authenticated playground</div>
+            <div class="text-xl font-black mt-1">Try a URL</div>
+          </div>
+          <div class="text-xs text-slate-400 text-right">
+            <div>Login required</div>
+            <div class="mono">/api/scrape</div>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
+          <label for="urlInput" class="text-xs uppercase tracking-[0.2em] text-slate-500">URL</label>
+          <input id="urlInput" class="mt-2 w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 outline-none focus:border-purple-400/60" placeholder="https://example.com/article" />
+          <button id="scrapeBtn" class="mt-3 w-full px-4 py-3 rounded-2xl btn-primary font-black disabled:opacity-50 disabled:cursor-not-allowed">Log in to scrape</button>
+          <p id="playgroundHint" class="mt-3 text-sm text-slate-400">Sign in to unlock your monthly free key and use the playground, dashboard, and API.</p>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div class="glass rounded-2xl p-4">
+            <div class="text-slate-500 text-xs uppercase tracking-[0.18em]">Primary output</div>
+            <div class="mt-2 font-bold">LLM-ready Markdown</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-slate-500 text-xs uppercase tracking-[0.18em]">Fallbacks</div>
+            <div class="mt-2 font-bold">HTTP → JSON → Browserless</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="max-w-7xl mx-auto px-5 md:px-8 py-8 grid lg:grid-cols-3 gap-5">
+    <article class="glass rounded-[1.75rem] p-6">
+      <div class="text-xs uppercase tracking-[0.2em] text-purple-300">1. Fast</div>
+      <h2 class="text-2xl font-black mt-2">Direct fetch first</h2>
+      <p class="mt-3 text-slate-300 leading-7">We try fast HTTP with browser-like headers, then only escalate when the page is blocked or too dynamic.</p>
+    </article>
+    <article class="glass rounded-[1.75rem] p-6">
+      <div class="text-xs uppercase tracking-[0.2em] text-purple-300">2. Clean</div>
+      <h2 class="text-2xl font-black mt-2">Readable structure</h2>
+      <p class="mt-3 text-slate-300 leading-7">Titles, headings, excerpt, author, publish date, canonical URL, and markdown output are returned in one response.</p>
+    </article>
+    <article class="glass rounded-[1.75rem] p-6">
+      <div class="text-xs uppercase tracking-[0.2em] text-purple-300">3. Safe</div>
+      <h2 class="text-2xl font-black mt-2">SSRF-aware validation</h2>
+      <p class="mt-3 text-slate-300 leading-7">Private hosts and private IP ranges are rejected before any fetch happens.</p>
+    </article>
+  </section>
+
+  <section class="max-w-7xl mx-auto px-5 md:px-8 py-8 grid lg:grid-cols-2 gap-6">
+    <div class="glass rounded-[1.75rem] p-6">
+      <div class="text-xs uppercase tracking-[0.2em] text-slate-500">What it returns</div>
+      <div class="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+        <div class="rounded-2xl bg-black/25 p-4">Title</div>
+        <div class="rounded-2xl bg-black/25 p-4">Canonical URL</div>
+        <div class="rounded-2xl bg-black/25 p-4">Headings</div>
+        <div class="rounded-2xl bg-black/25 p-4">Word count</div>
+        <div class="rounded-2xl bg-black/25 p-4">Author</div>
+        <div class="rounded-2xl bg-black/25 p-4">Published date</div>
+      </div>
+    </div>
+    <div class="glass rounded-[1.75rem] p-6">
+      <div class="text-xs uppercase tracking-[0.2em] text-slate-500">API shape</div>
+      <pre class="mt-4 mono text-xs leading-6 overflow-x-auto safe-scroll bg-black/30 rounded-2xl p-4">POST /api/scrape
+x-api-key: ghost_xxx
+Content-Type: application/json
+
+{ "url": "https://example.com/article" }</pre>
+    </div>
+  </section>
+</main>
+
+<footer class="max-w-7xl mx-auto px-5 md:px-8 py-10 border-t border-white/5 text-sm text-slate-500 flex flex-wrap gap-4 justify-between">
+  <div>
+    <div class="text-white font-black">Ghost Scrape</div>
+    <div>Production-minded scraping for AI systems.</div>
+  </div>
+  <div class="flex gap-4">
+    <a href="/docs" class="hover:text-white">Docs</a>
+    <a href="/status" class="hover:text-white">Status</a>
+    <a href="/terms" class="hover:text-white">Terms</a>
+    <a href="/privacy" class="hover:text-white">Privacy</a>
+  </div>
+</footer>
+
+
+<script>
+  const apiKey = localStorage.getItem("ghost_api_key");
+  const btn = document.getElementById("scrapeBtn");
+  const input = document.getElementById("urlInput");
+  const hint = document.getElementById("playgroundHint");
+
+  function renderState() {
+    if (apiKey) {
+      btn.textContent = "Scrape now";
+      btn.disabled = false;
+      hint.textContent = "Authenticated requests count toward your monthly quota.";
+    } else {
+      btn.textContent = "Log in to scrape";
+      btn.disabled = false;
+      hint.innerHTML = 'Sign in to unlock your free monthly API key. <a href="/login" class="text-purple-300 hover:text-white underline">Go to login</a>.';
+    }
+  }
+
+  async function safeJson(res) {
+    const contentType = String(res.headers.get("content-type") || "").toLowerCase();
+    if (!contentType.includes("application/json")) return {};
+    try { return await res.json(); } catch { return {}; }
+  }
+
+  async function handleScrape() {
+    if (!apiKey) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const url = input.value.trim();
+    if (!url) {
+      alert("Please enter a URL.");
+      return;
+    }
+
+    btn.disabled = true;
+    const previous = btn.textContent;
+    btn.textContent = "Scraping…";
+
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed with status ${res.status}`);
+      }
+
+      const markdown = data.markdown || "";
+      const preview = document.createElement("a");
+      preview.href = "/dashboard";
+      preview.textContent = "Open dashboard";
+      preview.className = "text-purple-300 underline";
+      hint.innerHTML = `Success. <span class="text-slate-300">${data.title || 'Untitled'}</span> · <a class="text-purple-300 underline" href="/dashboard">View dashboard</a>`;
+      alert(`Scraped ${data.domain || 'page'} successfully. Markdown length: ${markdown.length}`);
+    } catch (err) {
+      alert(err.message || "Request failed");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = apiKey ? "Scrape now" : "Log in to scrape";
+    }
+  }
+
+  btn.addEventListener("click", handleScrape);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleScrape();
+  });
+
+  renderState();
+  lucide.createIcons();
+</script>
+
+</body>
+</html>
